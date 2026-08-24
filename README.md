@@ -71,7 +71,7 @@ HD/FHD/4K suffixes are ignored for exact-name fallback, but ambiguous/fuzzy matc
 
 | Remote | Desktop | Action |
 |---|---|---|
-| Up / Down / Left / Right | Arrow keys | Explicit list/grid/group navigation |
+| Up / Down / Left / Right | Arrow keys | Navigate; Left/Right seeks −10/+30 seconds during VOD playback |
 | OK | Enter | Select, play, or toggle player information |
 | Back / Return | Escape or Backspace | Close overlay, player, detail, section, then app |
 | Play / Pause / Stop | Media keys | Playback control |
