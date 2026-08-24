@@ -3,6 +3,20 @@ services:
     build: .
     ports:
       - "${PORT:-8080}:8080"
+    environment:
+      - DEMO_MODE
+      - XTREAM_BASE_URL
+      - XTREAM_USERNAME
+      - XTREAM_PASSWORD
+      - XMLTV_URL
+      - EPG_REFRESH_HOURS
+      - PREFERRED_LIVE_FORMAT
+      - AUTOPLAY_LIVE
+      - REMEMBER_LAST_CHANNEL
     volumes:
-      - ./data:/data
+      - iptv_data:/data
     restart: unless-stopped
+
+volumes:
+  iptv_data:
+    name: vidaa-iptv-data

@@ -32,7 +32,7 @@ curl http://SERVER-IP:8080/health
 # {"status":"ok"}
 ```
 
-Configuration, EPG cache, favorites, and history persist in `./data` (mounted as `/data`). One shared profile is intentional.
+Configuration, EPG cache, favorites, and history persist in the `vidaa-iptv-data` Docker volume (mounted as `/data`). The fixed volume name keeps the data across Portainer Git-stack repulls and ordinary redeployments. One shared profile is intentional.
 
 ## Configuration
 
@@ -50,6 +50,8 @@ Configuration, EPG cache, favorites, and history persist in `./data` (mounted as
 | `PORT` | `8080` | Host port used by Compose |
 
 Environment variables override Settings. The Settings password is returned blank by the API; leaving it blank preserves an existing saved password.
+
+For a Portainer Git stack, define any desired variables in Portainer's stack environment. Compose passes them into the container directly; an `env_file` is not required. If credentials are entered through the app instead, they are stored in the `vidaa-iptv-data` volume and survive repository repulls.
 
 ### Xtream setup
 

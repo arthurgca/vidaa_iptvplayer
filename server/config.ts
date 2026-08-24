@@ -38,7 +38,14 @@ export function getConfig(): AppConfig {
 
 export async function saveConfig(update: Partial<AppConfig>): Promise<AppConfig> {
   const permitted: (keyof AppConfig)[] = ['xtreamBaseUrl','xtreamUsername','xtreamPassword','xmltvUrl','epgRefreshHours','preferredLiveFormat','autoplayLive','rememberLastChannel','demoMode'];
-  for (const key of permitted) if (update[key] !== undefined) (saved as Record<string, unknown>)[key] = update[key];
+  for (const key of permitted) {
+    const value = update[key];
+    if (value === undefined) continue;
+    // The public settings response never exposes the password. A blank value
+    // therefore means "keep the existing password", as the UI promises.
+    if (key === 'xtreamPassword' && value === '' && Boolean(getConfig().xtreamPassword)) continue;
+    (saved as Record<string, unknown>)[key] = value;
+  }
   await writeFile(configPath, JSON.stringify(saved, null, 2), 'utf8');
   return getConfig();
 }

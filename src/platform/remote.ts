@@ -22,7 +22,15 @@ export function listenToRemote(handler: (action: RemoteAction, event: KeyboardEv
     const action = remoteAction(event);
     if (!action) return;
     const editing = event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement;
-    if (editing && action !== 'BACK') return;
+    if (editing) {
+      if (action === 'BACK') {
+        event.preventDefault();
+        const control = event.target as HTMLElement;
+        control.blur();
+        control.closest<HTMLElement>('[data-focus-proxy]')?.focus();
+      }
+      return;
+    }
     event.preventDefault();
     handler(action, event);
   };
