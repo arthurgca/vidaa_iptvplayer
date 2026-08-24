@@ -1,0 +1,6 @@
+{
+  "name": "VIDAA IPTV",
+  "appUrl": "http://192.168.1.10:8080",
+  "resolution": 1080,
+  "notes": "Deployment metadata only. Enter these values in the VIDAA debug/developer tooling available for your TV; this is not an installable VIDAA manifest."
+}
