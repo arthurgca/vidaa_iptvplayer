@@ -17,7 +17,7 @@ export class FocusManager {
   setScope(scope: string, initial?: string) { this.scope = scope; if (initial) this.focus(initial); }
   focus(key: string) {
     const node = this.nodes.get(key); if (!node || !this.inScope(node)) return false;
-    this.current = key; node.element.focus({ preventScroll: true }); this.scrollNearestContainer(node.element);
+    this.current = key; this.focusWithoutScrolling(node.element); this.scrollNearestContainer(node.element);
     this.listeners.forEach((listener) => listener(key)); return true;
   }
   select() { this.nodes.get(this.current)?.onSelect(); }
@@ -39,6 +39,19 @@ export class FocusManager {
   }
   focusFirst() { const first = [...this.nodes.values()].filter((node) => this.inScope(node)).sort((a,b) => a.index-b.index)[0]; return first ? this.focus(first.key) : false; }
   private inScope(node: FocusNode) { return this.scope === 'root' || node.key.startsWith(`${this.scope}:`); }
+  private focusWithoutScrolling(element: HTMLElement) {
+    const positions: Array<{ element: HTMLElement; top: number; left: number }> = [];
+    let ancestor = element.parentElement;
+    while (ancestor) {
+      positions.push({ element: ancestor, top: ancestor.scrollTop, left: ancestor.scrollLeft });
+      ancestor = ancestor.parentElement;
+    }
+    element.focus({ preventScroll: true });
+    positions.forEach((position) => {
+      position.element.scrollTop = position.top;
+      position.element.scrollLeft = position.left;
+    });
+  }
   private scrollNearestContainer(element: HTMLElement) {
     let container = element.parentElement;
     while (container) {

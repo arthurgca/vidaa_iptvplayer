@@ -28,7 +28,7 @@ describe('FocusManager', () => {
     const rect = (top: number, bottom: number) => ({ top, bottom, left: 0, right: 100, width: 100, height: bottom - top, x: 0, y: top, toJSON() {} });
     const layout = { parentElement: null, scrollHeight: 300, clientHeight: 100, scrollWidth: 100, clientWidth: 100, scrollTop: 0, scrollLeft: 0, getBoundingClientRect: () => rect(0, 100) };
     const list = { parentElement: layout, scrollHeight: 300, clientHeight: 100, scrollWidth: 100, clientWidth: 100, scrollTop: 0, scrollLeft: 0, getBoundingClientRect: () => rect(0, 100) };
-    const item = { parentElement: list, focus() {}, getBoundingClientRect: () => rect(120, 150) } as unknown as HTMLElement;
+    const item = { parentElement: list, focus() { list.scrollTop = 40; layout.scrollTop = 40; }, getBoundingClientRect: () => rect(120, 150) } as unknown as HTMLElement;
     vi.stubGlobal('window', { getComputedStyle: (node: unknown) => node === list ? { overflowY: 'auto', overflowX: 'hidden' } : { overflowY: 'hidden', overflowX: 'hidden' } });
     const manager = new FocusManager();
     manager.register({ key: 'list:0', group: 'list', index: 0, onSelect() {}, element: item });
