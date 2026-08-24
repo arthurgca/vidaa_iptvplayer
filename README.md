@@ -76,11 +76,12 @@ HD/FHD/4K suffixes are ignored for exact-name fallback, but ambiguous/fuzzy matc
 | Back / Return | Escape or Backspace | Close overlay, player, detail, section, then app |
 | Play / Pause / Stop | Media keys | Playback control |
 | Channel + / − | — | Previous/next live channel |
+| Left (live playback) | Arrow Left | Open the channel browse bar: Up/Down previews now/next without leaving the current channel, OK tunes |
 | Fast-forward / Rewind | Media keys | ±30/−10 seconds for VOD |
 
 The central adapter uses documented VIDAA values: arrows `37–40`, Enter `13`, Backspace `8`, rewind `412`, stop `413`, play `415`, fast-forward `417`, and channel up/down `427/428`. It also accepts key-name fallbacks and known Back variants because firmware runtimes differ. Raw key codes never appear in screens or player code.
 
-Focus is application-managed; browser spatial navigation is not used. Lists, grids, sidebars, cross-column neighbors, and the mini-list are deterministic. Routes save the focused key, so Back restores the previous item. At Home, Back calls `window.close()`.
+Focus is application-managed; browser spatial navigation is not used. Lists, grids, sidebars, cross-column neighbors, and the player browse bar are deterministic. Routes save the focused key, so Back restores the previous item. At Home, Back calls `window.close()`.
 
 In development, append `?debug=1` to show route, focus key, and last remote action. It is not enabled in production.
 

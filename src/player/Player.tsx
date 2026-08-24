@@ -1,6 +1,7 @@
 import type HlsType from 'hls.js';
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { api } from '../api/client';
+import { isEpgFresh, loadEpg, peekEpg, programProgress } from '../api/epg';
 import { formatTime, Image, Progress } from '../components/common';
 import type { RemoteAction } from '../platform/remote';
 import type { Channel, Episode, EpgNow, MediaKind, SeriesItem, VodItem } from '../types';
@@ -69,9 +70,19 @@ export function parseMediaDuration(value: string | undefined) {
   return Math.max(0, hours * 3600 + minutes * 60 + seconds);
 }
 
+export const BROWSE_ROWS = 6;
+export const EPG_DEBOUNCE_MS = 250;
+
+/** Rows shown around the browse cursor: centred while there is room, pinned to either end of the list otherwise. */
+export function browseWindow(total: number, index: number, size = BROWSE_ROWS) {
+  if (total <= size) return { start: 0, end: total };
+  const start = Math.min(Math.max(0, index - Math.floor(size / 2)), total - size);
+  return { start, end: start + size };
+}
+
 export function Player({ media, registerAction, close }: { media: Playable; registerAction: (handler: ((action: RemoteAction) => boolean) | null) => void; close: () => void }) {
   const video = useRef<HTMLVideoElement>(null); const hls = useRef<HlsType>(); const hideTimer = useRef<number>(); const resumeApplied = useRef(false);
-  const [overlay, setOverlay] = useState(true); const [mini, setMini] = useState(false); const [miniIndex, setMiniIndex] = useState(0);
+  const [overlay, setOverlay] = useState(true); const [browsing, setBrowsing] = useState(false); const [browseIndex, setBrowseIndex] = useState(0); const [epgRevision, setEpgRevision] = useState(0);
   const [active, setActive] = useState(media); const [epg, setEpg] = useState<EpgNow>(); const [state, setState] = useState<'loading'|'playing'|'paused'|'error'>('loading');
   const [technical, setTechnical] = useState<TechnicalInfo>({ format: 'Stream' });
   const [position, setPosition] = useState(0); const [duration, setDuration] = useState(0); const [buffered, setBuffered] = useState(0);
@@ -129,24 +140,32 @@ export function Player({ media, registerAction, close }: { media: Playable; regi
   };
   const switchChannel = (index: number) => {
     const channel = channels[(index + channels.length) % channels.length]; if (!channel) return;
-    setActive({ type: 'live', id: channel.id, item: channel, extension: channel.extension, channels }); setMiniIndex((index + channels.length) % channels.length); setMini(false); show();
+    setActive({ type: 'live', id: channel.id, item: channel, extension: channel.extension, channels }); setBrowseIndex((index + channels.length) % channels.length); setBrowsing(false); show();
   };
   useEffect(() => { void start(); }, [active.id]);
-  useEffect(() => { if (active.type === 'live') api.epg(active.id).then(setEpg).catch(() => setEpg(undefined)); }, [active.id]);
-  useEffect(() => { const index = channels.findIndex((channel) => channel.id === active.id); if (index >= 0) setMiniIndex(index); }, [active.id]);
+  useEffect(() => { if (active.type === 'live') void loadEpg(active.id).then(setEpg); }, [active.id]);
+  useEffect(() => { const index = channels.findIndex((channel) => channel.id === active.id); if (index >= 0) setBrowseIndex(index); }, [active.id]);
+  // Browsing is preview only: the cursor pulls the highlighted channel's EPG after a pause, so holding a
+  // D-pad key scrolls without firing a request per row, and the cache answers rows already visited.
+  useEffect(() => {
+    const channel = channels[browseIndex];
+    if (!browsing || !channel || isEpgFresh(channel.id)) return;
+    const timer = window.setTimeout(() => { void loadEpg(channel.id).then(() => setEpgRevision((value) => value + 1)); }, EPG_DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
+  }, [browsing, channels[browseIndex]?.id]);
   useEffect(() => {
     const timeout = window.setTimeout(() => { if (state === 'loading') setState('error'); }, 18_000); return () => window.clearTimeout(timeout);
   }, [active.id, state]);
   useEffect(() => {
     registerAction((action) => {
       const element = video.current;
-      if (action === 'BACK') { if (mini) { setMini(false); return true; } if (overlay) { setOverlay(false); return true; } return false; }
-      if (action === 'SELECT') { if (state === 'error') { void start(); return true; } if (mini) { switchChannel(miniIndex); return true; } overlay ? setOverlay(false) : show(); return true; }
-      if (action === 'NAV_LEFT' && active.type === 'live') { setMini(true); setOverlay(true); return true; }
-      if (mini && action === 'NAV_UP') { setMiniIndex((value) => Math.max(0, value - 1)); return true; }
-      if (mini && action === 'NAV_DOWN') { setMiniIndex((value) => Math.min(channels.length - 1, value + 1)); return true; }
-      if (!mini && (action === 'NAV_UP' || action === 'CHANNEL_UP') && channels.length) { switchChannel(channels.findIndex((c) => c.id === active.id) - 1); return true; }
-      if (!mini && (action === 'NAV_DOWN' || action === 'CHANNEL_DOWN') && channels.length) { switchChannel(channels.findIndex((c) => c.id === active.id) + 1); return true; }
+      if (action === 'BACK') { if (browsing) { setBrowsing(false); return true; } if (overlay) { setOverlay(false); return true; } return false; }
+      if (action === 'SELECT') { if (state === 'error') { void start(); return true; } if (browsing) { switchChannel(browseIndex); return true; } overlay ? setOverlay(false) : show(); return true; }
+      if (action === 'NAV_LEFT' && active.type === 'live') { setBrowsing(true); setOverlay(true); return true; }
+      if (browsing && action === 'NAV_UP') { setBrowseIndex((value) => Math.max(0, value - 1)); return true; }
+      if (browsing && action === 'NAV_DOWN') { setBrowseIndex((value) => Math.min(channels.length - 1, value + 1)); return true; }
+      if (!browsing && (action === 'NAV_UP' || action === 'CHANNEL_UP') && channels.length) { switchChannel(channels.findIndex((c) => c.id === active.id) - 1); return true; }
+      if (!browsing && (action === 'NAV_DOWN' || action === 'CHANNEL_DOWN') && channels.length) { switchChannel(channels.findIndex((c) => c.id === active.id) + 1); return true; }
       if (action === 'NAV_LEFT' && active.type !== 'live') { seekTo((element?.currentTime || 0) - 10); return true; }
       if (action === 'NAV_RIGHT' && active.type !== 'live') { seekTo((element?.currentTime || 0) + 30); return true; }
       if ((action === 'PLAY' || action === 'PAUSE') && element) { action === 'PLAY' ? void element.play() : element.pause(); show(); return true; }
@@ -155,7 +174,7 @@ export function Player({ media, registerAction, close }: { media: Playable; regi
       return true;
     });
     return () => registerAction(null);
-  }, [active, overlay, mini, miniIndex, state]);
+  }, [active, overlay, browsing, browseIndex, state]);
   useEffect(() => () => {
     const element = video.current;
     api.watched({ type: active.type, id: active.id, item: active.item, position: element?.currentTime || 0, duration: element?.duration || 0 }).catch(() => undefined);
@@ -168,20 +187,35 @@ export function Player({ media, registerAction, close }: { media: Playable; regi
   const item = active.item; const title = item.name; const logo = 'logo' in item ? item.logo : undefined;
   const playedPercent = duration ? Math.min(100, (position / duration) * 100) : 0;
   const bufferedPercent = duration ? Math.min(100, (buffered / duration) * 100) : 0;
+  const browseRange = browseWindow(channels.length, browseIndex);
+  const browseRows = useMemo(() => channels.slice(browseRange.start, browseRange.end).map((channel, offset) => ({ channel, index: browseRange.start + offset, epg: peekEpg(channel.id) })), [channels, browseRange.start, browseRange.end, epgRevision]);
   const quality = technical.width && technical.height ? `${technical.width} × ${technical.height}${technical.frameRate ? ` · ${Math.round(technical.frameRate)} FPS` : ''}` : technical.frameRate ? `${Math.round(technical.frameRate)} FPS` : undefined;
   const technicalRows = [['Format', technical.format], ['Quality', quality], ['Video', codecName(technical.videoCodec)], ['Audio', codecName(technical.audioCodec)], ['Bitrate', bitrateLabel(technical.bitrate)]].filter((row): row is string[] => Boolean(row[1]));
   return <main className="player-screen"><video ref={video} autoplay playsInline onLoadedMetadata={() => { updateDimensions(); applyResume(); }} onDurationChange={() => { syncPlayback(); applyResume(); }} onTimeUpdate={syncPlayback} onProgress={syncPlayback} onSeeking={syncPlayback} onResize={updateDimensions} onPlaying={() => { setState('playing'); updateDimensions(); show(); }} onPause={() => setState('paused')} onError={() => setState('error')} />
     {state === 'loading' && <div className="player-status"><span className="spinner" />Loading stream…</div>}
     {state === 'error' && <div className="player-error"><h2>Unable to play this stream</h2><p>The provider may be unavailable, or this TV may not support the stream codec or container.</p><div><button onClick={() => void start()}>Retry</button><button onClick={close}>Back</button></div><small>Press OK to retry · Back to return</small></div>}
-    {mini && <aside className="mini-list"><h2>Channels</h2>{channels.slice(Math.max(0, miniIndex - 4), miniIndex + 5).map((channel) => <div key={channel.id} className={channels[miniIndex]?.id === channel.id ? 'mini-selected' : ''}><Image src={channel.logo} alt={channel.name} /><span>{channel.name}</span>{active.id === channel.id && <b>LIVE</b>}</div>)}<small>OK switches channel</small></aside>}
+    {browsing && <aside className="browse-bar" aria-label="Channel browser"><div className="browse-heading"><h2>Channels</h2><span>{browseIndex + 1} / {channels.length}</span></div>
+      <div className="browse-rows">{browseRows.map(({ channel, index, epg: row }) => {
+        const highlighted = index === browseIndex;
+        return <div key={channel.id} className={`browse-row${highlighted ? ' browse-row-active' : ''}`} aria-current={highlighted ? 'true' : undefined}>
+          <span className="browse-number">{channel.number || index + 1}</span><Image src={channel.logo} alt={channel.name} className="browse-logo" />
+          <div className="browse-copy">
+            <div className="browse-name"><strong>{channel.name}</strong>{active.id === channel.id && <b>LIVE</b>}</div>
+            <small className="browse-now">{row?.current?.title || 'No programme information'}</small>
+            <span className="browse-elapsed" aria-hidden="true"><i style={{ width: `${programProgress(row?.current)}%` }} /></span>
+            <small className="browse-next">{row?.next ? `Next · ${formatTime(row.next.start)} · ${row.next.title}` : ''}</small>
+            {highlighted && row?.current?.description && <p className="browse-description">{row.current.description}</p>}
+          </div>
+        </div>;
+      })}</div><small className="browse-hint">↑ ↓ Browse · OK Watch · Back Close</small></aside>}
     {overlay && state !== 'error' && <section className="player-overlay">
       <div className="player-now"><Image src={logo} alt={title} className="overlay-logo" /><div><span className="eyebrow">{active.type === 'live' ? 'LIVE NOW' : active.type === 'movie' ? 'MOVIE' : 'EPISODE'}</span><h1>{title}</h1>{epg?.current && <><strong>{epg.current.title}</strong><small>{formatTime(epg.current.start)} – {formatTime(epg.current.end)}</small></>}</div></div>
-      {active.type === 'live' ? <><Progress value={epg?.progress || 0} />{epg?.next && <div className="overlay-next"><span>Next · {formatTime(epg.next.start)}</span><strong>{epg.next.title}</strong></div>}</> : <div className="playback-timeline">
+      {active.type === 'live' ? <><Progress value={programProgress(epg?.current)} />{epg?.next && <div className="overlay-next"><span>Next · {formatTime(epg.next.start)}</span><strong>{epg.next.title}</strong></div>}</> : <div className="playback-timeline">
         <div className="timeline-times"><span>{formatPlaybackTime(position)}</span><span>{duration ? formatPlaybackTime(duration) : '--:--'}</span></div>
         <div className="timeline-control" role="slider" aria-label="Playback position" aria-valuemin={0} aria-valuemax={Math.round(duration)} aria-valuenow={Math.round(position)} aria-valuetext={`${formatPlaybackTime(position)} of ${duration ? formatPlaybackTime(duration) : 'unknown'}`}><div className="timeline-track" aria-hidden="true"><div className="timeline-buffered" style={{ width: `${bufferedPercent}%` }} /><div className="timeline-played" style={{ width: `${playedPercent}%` }} /><div className="timeline-thumb" style={{ left: `${playedPercent}%` }} /></div></div>
       </div>}
       <div className="playback-tech" aria-label="Playback technical information">{technicalRows.map(([label, value]) => <span key={label}><small>{label}</small><strong>{value}</strong></span>)}</div>
-      <div className="overlay-hints">{active.type === 'live' ? <><span>↑ ↓ Change channel</span><span>← Channel list</span></> : <><span>← 10s rewind</span><span>30s forward →</span></>}<span>OK Hide info</span><span>Back Exit</span></div>
+      <div className="overlay-hints">{active.type === 'live' ? <><span>↑ ↓ Change channel</span><span>← Browse channels</span></> : <><span>← 10s rewind</span><span>30s forward →</span></>}<span>OK Hide info</span><span>Back Exit</span></div>
     </section>}
   </main>;
 }
