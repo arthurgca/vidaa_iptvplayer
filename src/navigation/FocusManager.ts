@@ -1,22 +1,30 @@
 export type Direction = 'up'|'down'|'left'|'right';
+/** A neighbor may list fallbacks; the first key that resolves wins. `@previous` means "wherever focus came from". */
+export type NeighborTarget = string | string[];
+export const PREVIOUS_FOCUS = '@previous';
 export interface FocusNode {
   key: string; group: string; index: number; columns?: number; orientation?: 'vertical'|'horizontal'|'grid';
-  neighbors?: Partial<Record<Direction, string>>; onSelect: () => void; element: HTMLElement;
+  neighbors?: Partial<Record<Direction, NeighborTarget>>; onSelect: () => void; element: HTMLElement;
+  /** Nodes opted out of auto-focus are still reachable by arrow keys, but never claim focus on their own. */
+  autoFocus?: boolean;
 }
 
 export class FocusManager {
   private nodes = new Map<string, FocusNode>();
   private current = '';
+  private previousKey = '';
   private scope = 'root';
   private listeners = new Set<(key: string) => void>();
 
-  register(node: FocusNode) { this.nodes.set(node.key, node); if (!this.current) this.focus(node.key); }
-  unregister(key: string) { this.nodes.delete(key); }
+  register(node: FocusNode) { this.nodes.set(node.key, node); if (!this.current && node.autoFocus !== false) this.focus(node.key); }
+  unregister(key: string) { this.nodes.delete(key); if (this.previousKey === key) this.previousKey = ''; }
   subscribe(listener: (key: string) => void) { this.listeners.add(listener); return () => this.listeners.delete(listener); }
   get focused() { return this.current; }
+  get previous() { return this.previousKey; }
   setScope(scope: string, initial?: string) { this.scope = scope; if (initial) this.focus(initial); }
   focus(key: string) {
     const node = this.nodes.get(key); if (!node || !this.inScope(node)) return false;
+    if (this.current && this.current !== key) this.previousKey = this.current;
     this.current = key; this.focusWithoutScrolling(node.element); this.scrollNearestContainer(node.element);
     this.listeners.forEach((listener) => listener(key)); return true;
   }
@@ -24,8 +32,7 @@ export class FocusManager {
   move(direction: Direction) {
     const current = this.nodes.get(this.current);
     if (!current) return this.focusFirst();
-    const neighbor = current.neighbors?.[direction];
-    if (neighbor && this.focus(neighbor)) return true;
+    for (const neighbor of this.neighborKeys(current.neighbors?.[direction])) if (this.focus(neighbor)) return true;
     const group = [...this.nodes.values()].filter((node) => node.group === current.group && this.inScope(node)).sort((a,b) => a.index - b.index);
     const orientation = current.orientation || 'vertical';
     let delta = 0;
@@ -37,7 +44,16 @@ export class FocusManager {
     const target = group[position + delta];
     return target ? this.focus(target.key) : false;
   }
-  focusFirst() { const first = [...this.nodes.values()].filter((node) => this.inScope(node)).sort((a,b) => a.index-b.index)[0]; return first ? this.focus(first.key) : false; }
+  focusFirst() {
+    const candidates = [...this.nodes.values()].filter((node) => this.inScope(node)).sort((a,b) => a.index-b.index);
+    const first = candidates.find((node) => node.autoFocus !== false) || candidates[0];
+    return first ? this.focus(first.key) : false;
+  }
+  private neighborKeys(target: NeighborTarget | undefined) {
+    if (!target) return [];
+    return (Array.isArray(target) ? target : [target]).flatMap((key) => key !== PREVIOUS_FOCUS ? [key]
+      : this.previousKey && this.previousKey !== this.current ? [this.previousKey] : []);
+  }
   private inScope(node: FocusNode) { return this.scope === 'root' || node.key.startsWith(`${this.scope}:`); }
   private focusWithoutScrolling(element: HTMLElement) {
     const positions: Array<{ element: HTMLElement; top: number; left: number }> = [];

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { FocusManager } from '../src/navigation/FocusManager';
+import { FocusManager, PREVIOUS_FOCUS } from '../src/navigation/FocusManager';
 
 function element() {
   return { focus() {}, scrollIntoView() {} } as unknown as HTMLElement;
@@ -17,6 +17,29 @@ describe('FocusManager', () => {
     manager.move('down'); expect(manager.focused).toBe('cat:1');
     manager.focus('cat:0'); manager.move('right'); expect(manager.focused).toBe('channel:0');
     manager.move('left'); expect(manager.focused).toBe('cat:0');
+  });
+  it('reaches an opted-out node by arrow keys without ever landing on it first', () => {
+    const manager = new FocusManager();
+    manager.register({ key: 'live:search', group: 'live-search', index: 0, orientation: 'horizontal', autoFocus: false, neighbors: { down: [PREVIOUS_FOCUS, 'live:cat:all'] }, onSelect() {}, element: element() });
+    expect(manager.focused).toBe('');
+    manager.register({ key: 'live:cat:all', group: 'live-cats', index: 0, orientation: 'vertical', neighbors: { up: 'live:search' }, onSelect() {}, element: element() });
+    manager.register({ key: 'live:cat:1', group: 'live-cats', index: 1, orientation: 'vertical', onSelect() {}, element: element() });
+    expect(manager.focused).toBe('live:cat:all');
+    manager.focusFirst(); expect(manager.focused).toBe('live:cat:all');
+    manager.move('up'); expect(manager.focused).toBe('live:search');
+    manager.move('down'); expect(manager.focused).toBe('live:cat:all');
+  });
+  it('returns from a neighbor chain to wherever focus came from, then falls back', () => {
+    const manager = new FocusManager();
+    manager.register({ key: 'search', group: 'search', index: 0, autoFocus: false, neighbors: { down: [PREVIOUS_FOCUS, 'row:1'] }, onSelect() {}, element: element() });
+    for (let index = 0; index < 3; index++) manager.register({ key: `row:${index}`, group: 'rows', index, orientation: 'vertical', neighbors: { up: index === 0 ? 'search' : undefined }, onSelect() {}, element: element() });
+    manager.focus('row:2'); manager.focus('search');
+    manager.move('down'); expect(manager.focused).toBe('row:2');
+    manager.focus('row:0'); manager.move('up'); expect(manager.focused).toBe('search');
+    // Unregistering the remembered node drops it from the chain; the static fallback takes over.
+    manager.unregister('row:0');
+    expect(manager.previous).toBe('');
+    manager.move('down'); expect(manager.focused).toBe('row:1');
   });
   it('moves through grids by their declared column count', () => {
     const manager = new FocusManager();

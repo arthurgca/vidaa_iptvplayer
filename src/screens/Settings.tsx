@@ -1,26 +1,11 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { api } from '../api/client';
 import { ErrorState, Spinner } from '../components/common';
-import { Focusable, useFocusManager } from '../navigation/FocusContext';
+import { Focusable, useFocusProxy } from '../navigation/FocusContext';
 import type { AppConfig } from '../types';
 
-function useFieldProxy(focusKey: string, index: number, activate: () => void) {
-  const focus = useFocusManager();
-  const proxy = useRef<HTMLDivElement>(null);
-  const activateRef = useRef(activate);
-  activateRef.current = activate;
-  useEffect(() => {
-    if (!proxy.current) return;
-    focus.register({ key: focusKey, group: 'settings-controls', index, orientation: 'vertical', onSelect: () => activateRef.current(), element: proxy.current });
-    return () => focus.unregister(focusKey);
-  }, [focus, focusKey, index]);
-  return {
-    ref: proxy,
-    tabIndex: -1,
-    onFocus: () => { if (focus.focused !== focusKey) focus.focus(focusKey); },
-    onMouseEnter: () => focus.focus(focusKey)
-  };
-}
+const useFieldProxy = (focusKey: string, index: number, activate: () => void) =>
+  useFocusProxy({ focusKey, group: 'settings-controls', index, orientation: 'vertical', activate });
 
 interface RemoteInputProps {
   focusKey: string; index: number; label: preact.ComponentChildren; value: string;
