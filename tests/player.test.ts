@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clampSeekTime, formatPlaybackTime } from '../src/player/Player';
+import { clampSeekTime, formatPlaybackTime, parseMediaDuration } from '../src/player/Player';
 
 describe('player timeline helpers', () => {
   it('formats short and long playback positions', () => {
@@ -13,5 +13,13 @@ describe('player timeline helpers', () => {
     expect(clampSeekTime(45, 120)).toBe(45);
     expect(clampSeekTime(150, 120)).toBe(120);
     expect(clampSeekTime(30, Number.POSITIVE_INFINITY)).toBe(0);
+  });
+
+  it('uses provider duration metadata when the video element has no duration', () => {
+    expect(parseMediaDuration('01:48:30')).toBe(6510);
+    expect(parseMediaDuration('1h 48m')).toBe(6480);
+    expect(parseMediaDuration('52m')).toBe(3120);
+    expect(parseMediaDuration('6480')).toBe(6480);
+    expect(parseMediaDuration(undefined)).toBe(0);
   });
 });
