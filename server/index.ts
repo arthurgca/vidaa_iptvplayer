@@ -1,7 +1,7 @@
 import express, { type NextFunction, type Request, type Response } from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { initConfig, getConfig, publicConfig, saveConfig } from './config.js';
+import { initConfig, getConfig, isLanguage, languageConfigured, publicConfig, saveConfig } from './config.js';
 import { demoCategories, demoChannels, demoEpisodes, demoSeries, demoVod } from './demo.js';
 import { epgForChannel, epgStatus, initEpg, refreshEpg } from './epg/service.js';
 import { initStore, library } from './store.js';
@@ -56,16 +56,19 @@ async function series(categoryId?: string): Promise<SeriesItem[]> {
 }
 
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
-app.get('/api/status', (_req, res) => res.json({ configured: publicConfig().configured, demoMode: getConfig().demoMode, epg: epgStatus() }));
+app.get('/api/status', (_req, res) => res.json({ configured: publicConfig().configured, demoMode: getConfig().demoMode, language: getConfig().language, languageConfigured: languageConfigured(), epg: epgStatus() }));
 app.get('/api/config', (_req, res) => res.json(publicConfig()));
 app.put('/api/config', asyncRoute(async (req, res) => {
   const update = req.body as Record<string, unknown>;
   if (update.xtreamBaseUrl && !/^https?:\/\//i.test(String(update.xtreamBaseUrl))) throw new Error('Xtream Server must begin with http:// or https://.');
   if (update.xmltvUrl && !/^https?:\/\//i.test(String(update.xmltvUrl))) throw new Error('XMLTV URL must begin with http:// or https://.');
+  if (update.language !== undefined && !isLanguage(update.language)) throw new Error('Unsupported language.');
   if (!update.xtreamPassword) delete update.xtreamPassword;
   const config = await saveConfig(update);
-  clearXtreamCache();
-  if (config.xmltvUrl || config.demoMode) void refreshEpg(true);
+  // Saving a preference such as the language alone must not throw away a warm catalog or re-download the EPG.
+  const touches = (...keys: string[]) => keys.some((key) => key in update);
+  if (touches('xtreamBaseUrl', 'xtreamUsername', 'xtreamPassword', 'demoMode')) clearXtreamCache();
+  if (touches('xmltvUrl', 'epgRefreshHours', 'demoMode') && (config.xmltvUrl || config.demoMode)) void refreshEpg(true);
   res.json(publicConfig(config));
 }));
 app.post('/api/config/test', asyncRoute(async (req, res) => {

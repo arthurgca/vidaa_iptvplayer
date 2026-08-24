@@ -10,6 +10,7 @@ services:
       - XTREAM_PASSWORD
       - XMLTV_URL
       - EPG_REFRESH_HOURS
+      - LANGUAGE
       - PREFERRED_LIVE_FORMAT
       - AUTOPLAY_LIVE
       - REMEMBER_LAST_CHANNEL

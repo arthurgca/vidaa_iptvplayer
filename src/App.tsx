@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { api } from './api/client';
 import { ErrorState, Spinner } from './components/common';
+import { I18nProvider, useTranslate } from './i18n/I18nContext';
+import { detectLanguage, type Language } from './i18n';
 import { FocusProvider, useFocusManager, useFocusedKey } from './navigation/FocusContext';
 import type { Playable } from './player/Player';
 import { Player } from './player/Player';
@@ -16,10 +18,17 @@ import type { Channel, Episode, Favorite, HistoryItem, SeriesItem, VodItem } fro
 type RouteName = 'home'|'live'|'movies'|'movie-details'|'series'|'series-details'|'favorites'|'recent'|'settings'|'player';
 interface Route { name: RouteName; data?: unknown; restoreFocus?: string }
 
-export function App() { return <FocusProvider><AppRouter /></FocusProvider>; }
+export function App() {
+  // The TV's own language carries the UI until the backend answers with a preference someone actually chose.
+  const [language, setLanguage] = useState<Language>(detectLanguage);
+  useEffect(() => { document.documentElement.lang = language; }, [language]);
+  return <I18nProvider language={language}><FocusProvider><AppRouter language={language} setLanguage={setLanguage} /></FocusProvider></I18nProvider>;
+}
 
-function AppRouter() {
-  const focus = useFocusManager(); const focusedKey = useFocusedKey();
+interface RouterProps { language: Language; setLanguage: (language: Language) => void }
+
+function AppRouter({ language, setLanguage }: RouterProps) {
+  const focus = useFocusManager(); const focusedKey = useFocusedKey(); const t = useTranslate();
   const [routes, setRoutes] = useState<Route[]>([]); const [startupError, setStartupError] = useState(''); const [lastKey, setLastKey] = useState('');
   const [liveCategory, setLiveCategory] = useState('');
   const playerAction = useRef<((action: RemoteAction) => boolean) | null>(null);
@@ -32,7 +41,10 @@ function AppRouter() {
     if (routes.length <= 1) { try { window.close(); } catch { /* browser preview */ } return; }
     const previous = routes[routes.length - 2]; setRoutes((stack) => stack.slice(0, -1)); restoreSoon(previous?.restoreFocus);
   };
-  useEffect(() => { api.status().then((status) => setRoutes([{ name: status.configured ? 'home' : 'settings', data: { firstRun: true } }])).catch((error) => setStartupError(error.message)); }, []);
+  useEffect(() => { api.status().then((status) => {
+    if (status.languageConfigured) setLanguage(status.language);
+    setRoutes([{ name: status.configured ? 'home' : 'settings', data: { firstRun: true } }]);
+  }).catch((error) => setStartupError(error.message)); }, []);
   useEffect(() => listenToRemote((action) => {
     setLastKey(action);
     if (current?.name === 'player' && playerAction.current) { if (playerAction.current(action)) return; }
@@ -45,8 +57,8 @@ function AppRouter() {
   }), [current?.name, routes.length]);
   useEffect(() => { if (current?.name !== 'player') restoreSoon(current?.restoreFocus); }, [current?.name]);
 
-  if (startupError) return <ErrorState error={`Backend unavailable: ${startupError}`} retry={() => location.reload()} />;
-  if (!current) return <Spinner label="Starting VIDAA IPTV…" />;
+  if (startupError) return <ErrorState error={t('app.backendUnavailable', { error: startupError })} retry={() => location.reload()} />;
+  if (!current) return <Spinner label={t('app.starting')} />;
   const playMovie = (item: VodItem, resumeAt = 0) => push('player', { type: 'movie', id: item.id, item, extension: item.extension, resumeAt } satisfies Playable);
   const playEpisode = (episode: Episode, series?: SeriesItem, resumeAt = 0) => push('player', { type: 'series', id: episode.id, item: episode, extension: episode.extension, series, resumeAt } satisfies Playable);
   const openFavorite = (row: Favorite) => {
@@ -69,9 +81,9 @@ function AppRouter() {
     case 'series-details': screen = <SeriesDetails seed={current.data as SeriesItem} play={playEpisode} />; break;
     case 'favorites': screen = <Favorites open={openFavorite} />; break;
     case 'recent': screen = <Recent open={openRecent} />; break;
-    case 'settings': screen = <Settings firstRun={Boolean((current.data as { firstRun?: boolean })?.firstRun)} saved={(current.data as { firstRun?: boolean })?.firstRun ? replaceHome : back} />; break;
+    case 'settings': screen = <Settings firstRun={Boolean((current.data as { firstRun?: boolean })?.firstRun)} language={language} setLanguage={setLanguage} saved={(current.data as { firstRun?: boolean })?.firstRun ? replaceHome : back} />; break;
     case 'player': screen = <Player media={current.data as Playable} registerAction={(handler) => { playerAction.current = handler; }} close={back} />; break;
   }
   const debug = import.meta.env.DEV && new URLSearchParams(location.search).get('debug') === '1';
-  return <div className="app-shell">{screen}{current.name !== 'home' && current.name !== 'player' && <div className="back-hint">‹ Back</div>}{debug && <div className="debug-overlay">route: {current.name}<br/>focus: {focusedKey || 'none'}<br/>key: {lastKey || 'none'}<br/>viewport: {window.innerWidth}x{window.innerHeight} dpr:{window.devicePixelRatio || 1}</div>}</div>;
+  return <div className="app-shell">{screen}{current.name !== 'home' && current.name !== 'player' && <div className="back-hint">{t('app.back')}</div>}{debug && <div className="debug-overlay">route: {current.name}<br/>focus: {focusedKey || 'none'}<br/>key: {lastKey || 'none'}<br/>viewport: {window.innerWidth}x{window.innerHeight} dpr:{window.devicePixelRatio || 1}</div>}</div>;
 }

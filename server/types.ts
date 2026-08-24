@@ -1,4 +1,5 @@
 export type MediaKind = 'live' | 'movie' | 'series';
+export type Language = 'en' | 'pt';
 
 export interface AppConfig {
   xtreamBaseUrl: string;
@@ -10,6 +11,7 @@ export interface AppConfig {
   autoplayLive: boolean;
   rememberLastChannel: boolean;
   demoMode: boolean;
+  language: Language;
 }
 
 export interface Category { id: string; name: string }

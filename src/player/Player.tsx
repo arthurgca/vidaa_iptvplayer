@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { api } from '../api/client';
 import { isEpgFresh, loadEpg, peekEpg, programProgress } from '../api/epg';
 import { formatTime, Image, Progress } from '../components/common';
+import { useTranslate } from '../i18n/I18nContext';
 import type { RemoteAction } from '../platform/remote';
 import type { Channel, Episode, EpgNow, MediaKind, SeriesItem, VodItem } from '../types';
 
@@ -16,12 +17,12 @@ interface TechnicalInfo {
   bitrate?: number; videoCodec?: string; audioCodec?: string;
 }
 
-function streamFormat(extension: string | undefined, isHls: boolean) {
+function streamFormat(extension: string | undefined, isHls: boolean, fallback: string) {
   if (isHls) return 'HLS';
   const value = extension?.replace(/^\./, '').toLowerCase();
   if (value === 'ts') return 'MPEG-TS';
   if (value === 'mkv') return 'Matroska';
-  return value?.toUpperCase() || 'Stream';
+  return value?.toUpperCase() || fallback;
 }
 
 function codecName(codec: string | undefined) {
@@ -81,10 +82,11 @@ export function browseWindow(total: number, index: number, size = BROWSE_ROWS) {
 }
 
 export function Player({ media, registerAction, close }: { media: Playable; registerAction: (handler: ((action: RemoteAction) => boolean) | null) => void; close: () => void }) {
+  const t = useTranslate();
   const video = useRef<HTMLVideoElement>(null); const hls = useRef<HlsType>(); const hideTimer = useRef<number>(); const resumeApplied = useRef(false);
   const [overlay, setOverlay] = useState(true); const [browsing, setBrowsing] = useState(false); const [browseIndex, setBrowseIndex] = useState(0); const [epgRevision, setEpgRevision] = useState(0);
   const [active, setActive] = useState(media); const [epg, setEpg] = useState<EpgNow>(); const [state, setState] = useState<'loading'|'playing'|'paused'|'error'>('loading');
-  const [technical, setTechnical] = useState<TechnicalInfo>({ format: 'Stream' });
+  const [technical, setTechnical] = useState<TechnicalInfo>({ format: t('player.tech.stream') });
   const [position, setPosition] = useState(0); const [duration, setDuration] = useState(0); const [buffered, setBuffered] = useState(0);
   const channels = active.channels || [];
   const metadataDuration = 'duration' in active.item ? parseMediaDuration(active.item.duration) : 0;
@@ -101,7 +103,7 @@ export function Player({ media, registerAction, close }: { media: Playable; regi
     setState('loading'); setPosition(0); setDuration(0); setBuffered(0); resumeApplied.current = false; hls.current?.destroy(); hls.current = undefined;
     const url = api.playUrl(active.type, active.id, active.extension);
     const isHls = active.extension === 'm3u8' || (active.type === 'live' && url.includes('ext=m3u8'));
-    setTechnical({ format: streamFormat(active.extension, isHls) });
+    setTechnical({ format: streamFormat(active.extension, isHls, t('player.tech.stream')) });
     if (isHls && !element.canPlayType('application/vnd.apple.mpegurl')) {
       const Hls = (await import('hls.js')).default;
       if (!Hls.isSupported()) { setState('error'); return; }
@@ -190,32 +192,32 @@ export function Player({ media, registerAction, close }: { media: Playable; regi
   const browseRange = browseWindow(channels.length, browseIndex);
   const browseRows = useMemo(() => channels.slice(browseRange.start, browseRange.end).map((channel, offset) => ({ channel, index: browseRange.start + offset, epg: peekEpg(channel.id) })), [channels, browseRange.start, browseRange.end, epgRevision]);
   const quality = technical.width && technical.height ? `${technical.width} × ${technical.height}${technical.frameRate ? ` · ${Math.round(technical.frameRate)} FPS` : ''}` : technical.frameRate ? `${Math.round(technical.frameRate)} FPS` : undefined;
-  const technicalRows = [['Format', technical.format], ['Quality', quality], ['Video', codecName(technical.videoCodec)], ['Audio', codecName(technical.audioCodec)], ['Bitrate', bitrateLabel(technical.bitrate)]].filter((row): row is string[] => Boolean(row[1]));
+  const technicalRows = [[t('player.tech.format'), technical.format], [t('player.tech.quality'), quality], [t('player.tech.video'), codecName(technical.videoCodec)], [t('player.tech.audio'), codecName(technical.audioCodec)], [t('player.tech.bitrate'), bitrateLabel(technical.bitrate)]].filter((row): row is string[] => Boolean(row[1]));
   return <main className="player-screen"><video ref={video} autoplay playsInline onLoadedMetadata={() => { updateDimensions(); applyResume(); }} onDurationChange={() => { syncPlayback(); applyResume(); }} onTimeUpdate={syncPlayback} onProgress={syncPlayback} onSeeking={syncPlayback} onResize={updateDimensions} onPlaying={() => { setState('playing'); updateDimensions(); show(); }} onPause={() => setState('paused')} onError={() => setState('error')} />
-    {state === 'loading' && <div className="player-status"><span className="spinner" />Loading stream…</div>}
-    {state === 'error' && <div className="player-error"><h2>Unable to play this stream</h2><p>The provider may be unavailable, or this TV may not support the stream codec or container.</p><div><button onClick={() => void start()}>Retry</button><button onClick={close}>Back</button></div><small>Press OK to retry · Back to return</small></div>}
-    {browsing && <aside className="browse-bar" aria-label="Channel browser"><div className="browse-heading"><h2>Channels</h2><span>{browseIndex + 1} / {channels.length}</span></div>
+    {state === 'loading' && <div className="player-status"><span className="spinner" />{t('player.loading')}</div>}
+    {state === 'error' && <div className="player-error"><h2>{t('player.error.title')}</h2><p>{t('player.error.body')}</p><div><button onClick={() => void start()}>{t('common.retry')}</button><button onClick={close}>{t('common.back')}</button></div><small>{t('player.error.hint')}</small></div>}
+    {browsing && <aside className="browse-bar" aria-label={t('player.browse.label')}><div className="browse-heading"><h2>{t('player.browse.title')}</h2><span>{browseIndex + 1} / {channels.length}</span></div>
       <div className="browse-rows">{browseRows.map(({ channel, index, epg: row }) => {
         const highlighted = index === browseIndex;
         return <div key={channel.id} className={`browse-row${highlighted ? ' browse-row-active' : ''}`} aria-current={highlighted ? 'true' : undefined}>
           <span className="browse-number">{channel.number || index + 1}</span><Image src={channel.logo} alt={channel.name} className="browse-logo" />
           <div className="browse-copy">
-            <div className="browse-name"><strong>{channel.name}</strong>{active.id === channel.id && <b>LIVE</b>}</div>
-            <small className="browse-now">{row?.current?.title || 'No programme information'}</small>
+            <div className="browse-name"><strong>{channel.name}</strong>{active.id === channel.id && <b>{t('kind.live')}</b>}</div>
+            <small className="browse-now">{row?.current?.title || t('common.noProgramme')}</small>
             <span className="browse-elapsed" aria-hidden="true"><i style={{ width: `${programProgress(row?.current)}%` }} /></span>
-            <small className="browse-next">{row?.next ? `Next · ${formatTime(row.next.start)} · ${row.next.title}` : ''}</small>
+            <small className="browse-next">{row?.next ? t('player.browse.next', { time: formatTime(row.next.start), title: row.next.title }) : ''}</small>
             {highlighted && row?.current?.description && <p className="browse-description">{row.current.description}</p>}
           </div>
         </div>;
-      })}</div><small className="browse-hint">↑ ↓ Browse · OK Watch · Back Close</small></aside>}
+      })}</div><small className="browse-hint">{t('player.browse.hint')}</small></aside>}
     {overlay && state !== 'error' && <section className="player-overlay">
-      <div className="player-now"><Image src={logo} alt={title} className="overlay-logo" /><div><span className="eyebrow">{active.type === 'live' ? 'LIVE NOW' : active.type === 'movie' ? 'MOVIE' : 'EPISODE'}</span><h1>{title}</h1>{epg?.current && <><strong>{epg.current.title}</strong><small>{formatTime(epg.current.start)} – {formatTime(epg.current.end)}</small></>}</div></div>
-      {active.type === 'live' ? <><Progress value={programProgress(epg?.current)} />{epg?.next && <div className="overlay-next"><span>Next · {formatTime(epg.next.start)}</span><strong>{epg.next.title}</strong></div>}</> : <div className="playback-timeline">
+      <div className="player-now"><Image src={logo} alt={title} className="overlay-logo" /><div><span className="eyebrow">{active.type === 'live' ? t('player.liveNow') : active.type === 'movie' ? t('player.movie') : t('player.episode')}</span><h1>{title}</h1>{epg?.current && <><strong>{epg.current.title}</strong><small>{formatTime(epg.current.start)} – {formatTime(epg.current.end)}</small></>}</div></div>
+      {active.type === 'live' ? <><Progress value={programProgress(epg?.current)} />{epg?.next && <div className="overlay-next"><span>{t('player.next', { time: formatTime(epg.next.start) })}</span><strong>{epg.next.title}</strong></div>}</> : <div className="playback-timeline">
         <div className="timeline-times"><span>{formatPlaybackTime(position)}</span><span>{duration ? formatPlaybackTime(duration) : '--:--'}</span></div>
-        <div className="timeline-control" role="slider" aria-label="Playback position" aria-valuemin={0} aria-valuemax={Math.round(duration)} aria-valuenow={Math.round(position)} aria-valuetext={`${formatPlaybackTime(position)} of ${duration ? formatPlaybackTime(duration) : 'unknown'}`}><div className="timeline-track" aria-hidden="true"><div className="timeline-buffered" style={{ width: `${bufferedPercent}%` }} /><div className="timeline-played" style={{ width: `${playedPercent}%` }} /><div className="timeline-thumb" style={{ left: `${playedPercent}%` }} /></div></div>
+        <div className="timeline-control" role="slider" aria-label={t('player.timeline.label')} aria-valuemin={0} aria-valuemax={Math.round(duration)} aria-valuenow={Math.round(position)} aria-valuetext={t('player.timeline.valueText', { position: formatPlaybackTime(position), duration: duration ? formatPlaybackTime(duration) : t('player.timeline.unknown') })}><div className="timeline-track" aria-hidden="true"><div className="timeline-buffered" style={{ width: `${bufferedPercent}%` }} /><div className="timeline-played" style={{ width: `${playedPercent}%` }} /><div className="timeline-thumb" style={{ left: `${playedPercent}%` }} /></div></div>
       </div>}
-      <div className="playback-tech" aria-label="Playback technical information">{technicalRows.map(([label, value]) => <span key={label}><small>{label}</small><strong>{value}</strong></span>)}</div>
-      <div className="overlay-hints">{active.type === 'live' ? <><span>↑ ↓ Change channel</span><span>← Browse channels</span></> : <><span>← 10s rewind</span><span>30s forward →</span></>}<span>OK Hide info</span><span>Back Exit</span></div>
+      <div className="playback-tech" aria-label={t('player.tech.label')}>{technicalRows.map(([label, value]) => <span key={label}><small>{label}</small><strong>{value}</strong></span>)}</div>
+      <div className="overlay-hints">{active.type === 'live' ? <><span>{t('player.hint.changeChannel')}</span><span>{t('player.hint.browse')}</span></> : <><span>{t('player.hint.rewind')}</span><span>{t('player.hint.forward')}</span></>}<span>{t('player.hint.hideInfo')}</span><span>{t('player.hint.exit')}</span></div>
     </section>}
   </main>;
 }

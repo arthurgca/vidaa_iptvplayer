@@ -1,16 +1,20 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import type { AppConfig } from './types.js';
+import type { AppConfig, Language } from './types.js';
 
 const dataDir = process.env.DATA_DIR || path.resolve('data');
 const configPath = path.join(dataDir, 'config.json');
 
 const bool = (value: string | undefined, fallback: boolean) => value == null ? fallback : value === 'true' || value === '1';
+export const isLanguage = (value: unknown): value is Language => value === 'en' || value === 'pt';
+/** First recognized language wins, so an unknown value saved or exported can never reach the UI. */
+const pickLanguage = (...values: unknown[]): Language => values.find(isLanguage) ?? 'en';
 
 const defaults: AppConfig = {
   xtreamBaseUrl: '', xtreamUsername: '', xtreamPassword: '', xmltvUrl: '',
   epgRefreshHours: 6, preferredLiveFormat: 'auto', autoplayLive: true,
-  rememberLastChannel: true, demoMode: bool(process.env.DEMO_MODE, false)
+  rememberLastChannel: true, demoMode: bool(process.env.DEMO_MODE, false),
+  language: pickLanguage(process.env.LANGUAGE)
 };
 
 let saved: Partial<AppConfig> = {};
@@ -32,12 +36,13 @@ export function getConfig(): AppConfig {
     preferredLiveFormat: (process.env.PREFERRED_LIVE_FORMAT as AppConfig['preferredLiveFormat']) || config.preferredLiveFormat,
     autoplayLive: bool(process.env.AUTOPLAY_LIVE, config.autoplayLive),
     rememberLastChannel: bool(process.env.REMEMBER_LAST_CHANNEL, config.rememberLastChannel),
-    demoMode: bool(process.env.DEMO_MODE, config.demoMode)
+    demoMode: bool(process.env.DEMO_MODE, config.demoMode),
+    language: pickLanguage(process.env.LANGUAGE, config.language)
   };
 }
 
 export async function saveConfig(update: Partial<AppConfig>): Promise<AppConfig> {
-  const permitted: (keyof AppConfig)[] = ['xtreamBaseUrl','xtreamUsername','xtreamPassword','xmltvUrl','epgRefreshHours','preferredLiveFormat','autoplayLive','rememberLastChannel','demoMode'];
+  const permitted: (keyof AppConfig)[] = ['xtreamBaseUrl','xtreamUsername','xtreamPassword','xmltvUrl','epgRefreshHours','preferredLiveFormat','autoplayLive','rememberLastChannel','demoMode','language'];
   for (const key of permitted) {
     const value = update[key];
     if (value === undefined) continue;
@@ -50,8 +55,12 @@ export async function saveConfig(update: Partial<AppConfig>): Promise<AppConfig>
   return getConfig();
 }
 
+// Until someone has actually chosen one, the TV's own language is a better guess than our default,
+// so the client is told whether `language` is a real preference or just the fallback.
+export const languageConfigured = () => isLanguage(saved.language) || isLanguage(process.env.LANGUAGE);
+
 export function publicConfig(config = getConfig()) {
-  return { ...config, xtreamPassword: '', passwordConfigured: Boolean(config.xtreamPassword), configured: config.demoMode || Boolean(config.xtreamBaseUrl && config.xtreamUsername && config.xtreamPassword) };
+  return { ...config, xtreamPassword: '', passwordConfigured: Boolean(config.xtreamPassword), languageConfigured: languageConfigured(), configured: config.demoMode || Boolean(config.xtreamBaseUrl && config.xtreamUsername && config.xtreamPassword) };
 }
 
 export { dataDir };

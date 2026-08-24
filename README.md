@@ -36,12 +36,19 @@ Configuration, EPG cache, favorites, and history persist in the `vidaa-iptv-data
 | `XTREAM_PASSWORD` | — | Xtream password |
 | `XMLTV_URL` | — | Optional arbitrary HTTP(S) XMLTV URL |
 | `EPG_REFRESH_HOURS` | `6` | XMLTV refresh interval |
+| `LANGUAGE` | — | Interface language, `en` or `pt`; overrides the Settings choice |
 | `PREFERRED_LIVE_FORMAT` | `auto` | `auto`, `hls`, or `ts` |
 | `AUTOPLAY_LIVE` | `true` | Start selected live channels immediately |
 | `REMEMBER_LAST_CHANNEL` | `true` | Retain the recently selected live channel |
 | `PORT` | `8080` | Host port used by Compose |
 
 Environment variables override Settings. The Settings password is returned blank by the API; leaving it blank preserves an existing saved password.
+
+### Language
+
+The interface ships in English and Brazilian Portuguese. **Settings → Language** switches it immediately and saves the choice for every device, and the same selector is the first field on the first-run screen. Until someone chooses, the TV's own language decides: any `pt` variant starts in Portuguese, anything else in English. Setting `LANGUAGE` pins the interface and hides that guess.
+
+Provider and connection errors are relayed from the backend and stay in English.
 
 For a Portainer Git stack, define any desired variables in Portainer's stack environment. Compose passes them into the container directly; an `env_file` is not required. If credentials are entered through the app instead, they are stored in the `vidaa-iptv-data` volume and survive repository repulls.
 

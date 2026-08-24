@@ -1,4 +1,7 @@
+import type { Language } from '../i18n';
 import type { AppConfig, Category, Channel, EpgNow, Favorite, HistoryItem, MediaKind, Page, SeriesItem, VodItem, Episode } from '../types';
+
+export interface AppStatus { configured: boolean; demoMode: boolean; language: Language; languageConfigured: boolean }
 
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, { ...options, headers: { 'content-type': 'application/json', ...options?.headers } });
@@ -14,7 +17,7 @@ const query = (values: Record<string, string | number | undefined>) => {
 };
 
 export const api = {
-  status: () => request<{ configured: boolean; demoMode: boolean }>('/api/status'),
+  status: () => request<AppStatus>('/api/status'),
   config: () => request<AppConfig>('/api/config'),
   saveConfig: (value: Partial<AppConfig>) => request<AppConfig>('/api/config', { method: 'PUT', body: JSON.stringify(value) }),
   testConfig: (value: Partial<AppConfig>) => request<{ ok: boolean; message: string }>('/api/config/test', { method: 'POST', body: JSON.stringify(value) }),
