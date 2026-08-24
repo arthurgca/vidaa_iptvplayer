@@ -6,14 +6,6 @@ There are no application accounts, cloud services, transcoders, Redis, or extern
 
 > This project does not include IPTV service or credentials. Use only sources you are authorized to access.
 
-## Screenshots
-
-Capture these placeholders at 1920×1080 after starting Demo Mode:
-
-- `docs/screenshots/home.png` — remote-focused home cards
-- `docs/screenshots/live-tv.png` — categories, channels, and EPG
-- `docs/screenshots/player.png` — player overlay and mini channel list
-- `docs/screenshots/movies.png` — category sidebar and poster grid
 
 ## Quick start with Docker
 
