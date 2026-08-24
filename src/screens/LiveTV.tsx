@@ -5,13 +5,23 @@ import { useAsync } from '../hooks/useAsync';
 import { Focusable } from '../navigation/FocusContext';
 import type { Channel, EpgNow } from '../types';
 
-export function LiveTV({ play }: { play: (channel: Channel, channels: Channel[]) => void }) {
+interface LiveTVProps {
+  category: string;
+  setCategory: (category: string) => void;
+  play: (channel: Channel, channels: Channel[]) => void;
+}
+
+export function LiveTV({ category, setCategory, play }: LiveTVProps) {
   const categories = useAsync(api.liveCategories, []);
-  const [category, setCategory] = useState(''); const [search, setSearch] = useState('');
+  const [search, setSearch] = useState('');
   const channels = useAsync(() => api.channels(category || undefined, 0, search), [category, search]);
   const [selected, setSelected] = useState<Channel>(); const [epg, setEpg] = useState<EpgNow>();
   const [favorite, setFavorite] = useState(false);
-  useEffect(() => { if (channels.data?.items[0] && !selected) setSelected(channels.data.items[0]); }, [channels.data]);
+  useEffect(() => {
+    const items = channels.data?.items;
+    if (!items?.length) { setSelected(undefined); return; }
+    if (!selected || !items.some((item) => item.id === selected.id)) setSelected(items[0]);
+  }, [channels.data]);
   useEffect(() => { if (!selected) return; let active = true; api.epg(selected.id).then((value) => active && setEpg(value)).catch(() => active && setEpg(undefined)); return () => { active = false; }; }, [selected?.id]);
   useEffect(() => { if (!selected) return; api.favorites().then((rows) => setFavorite(rows.some((row) => row.type === 'live' && row.id === selected.id))).catch(() => setFavorite(false)); }, [selected?.id]);
   const toggleFavorite = () => { if (!selected) return; const action = favorite ? api.unfavorite('live', selected.id) : api.favorite({ type: 'live', id: selected.id, item: selected }); action.then(() => setFavorite(!favorite)).catch(() => undefined); };

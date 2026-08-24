@@ -176,4 +176,6 @@ Many IPTV origins are HTTP-only. An HTTPS UI playing HTTP media can trigger mixe
 
 **Remote Back exits too early** — Firmware may emit a different value. Use `?debug=1` during development and update only `src/platform/remote.ts` after device confirmation.
 
+**UI looks soft or incorrectly scaled** — Install the debug app at 1080 resolution; a 720 app surface will be enlarged by the TV even on a 4K panel. Append `?debug=1` to the app URL to see the viewport size and device-pixel ratio reported by the TV. The UI includes fixed fallbacks for older VIDAA browsers that do not support CSS `clamp()`.
+
 **VIDAA install option is missing** — `hisense://debug` is firmware-dependent. Use the TV browser while testing or obtain current tooling through VIDAA rather than using an unofficial manifest.

@@ -21,6 +21,7 @@ export function App() { return <FocusProvider><AppRouter /></FocusProvider>; }
 function AppRouter() {
   const focus = useFocusManager(); const focusedKey = useFocusedKey();
   const [routes, setRoutes] = useState<Route[]>([]); const [startupError, setStartupError] = useState(''); const [lastKey, setLastKey] = useState('');
+  const [liveCategory, setLiveCategory] = useState('');
   const playerAction = useRef<((action: RemoteAction) => boolean) | null>(null);
   const current = routes[routes.length - 1];
 
@@ -61,7 +62,7 @@ function AppRouter() {
   let screen: preact.ComponentChildren;
   switch (current.name) {
     case 'home': screen = <Home open={(route) => push(route as RouteName)} />; break;
-    case 'live': screen = <LiveTV play={(channel, channels) => push('player', { type: 'live', id: channel.id, item: channel, extension: channel.extension, channels } satisfies Playable)} />; break;
+    case 'live': screen = <LiveTV category={liveCategory} setCategory={setLiveCategory} play={(channel, channels) => push('player', { type: 'live', id: channel.id, item: channel, extension: channel.extension, channels } satisfies Playable)} />; break;
     case 'movies': screen = <MediaCatalog kind="movies" open={(item) => push('movie-details', item)} />; break;
     case 'movie-details': screen = <MovieDetails seed={current.data as VodItem} play={playMovie} />; break;
     case 'series': screen = <MediaCatalog kind="series" open={(item) => push('series-details', item)} />; break;
@@ -72,5 +73,5 @@ function AppRouter() {
     case 'player': screen = <Player media={current.data as Playable} registerAction={(handler) => { playerAction.current = handler; }} close={back} />; break;
   }
   const debug = import.meta.env.DEV && new URLSearchParams(location.search).get('debug') === '1';
-  return <div className="app-shell">{screen}{current.name !== 'home' && current.name !== 'player' && <div className="back-hint">‹ Back</div>}{debug && <div className="debug-overlay">route: {current.name}<br/>focus: {focusedKey || 'none'}<br/>key: {lastKey || 'none'}</div>}</div>;
+  return <div className="app-shell">{screen}{current.name !== 'home' && current.name !== 'player' && <div className="back-hint">‹ Back</div>}{debug && <div className="debug-overlay">route: {current.name}<br/>focus: {focusedKey || 'none'}<br/>key: {lastKey || 'none'}<br/>viewport: {window.innerWidth}x{window.innerHeight} dpr:{window.devicePixelRatio || 1}</div>}</div>;
 }
