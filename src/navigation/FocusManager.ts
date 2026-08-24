@@ -17,7 +17,7 @@ export class FocusManager {
   setScope(scope: string, initial?: string) { this.scope = scope; if (initial) this.focus(initial); }
   focus(key: string) {
     const node = this.nodes.get(key); if (!node || !this.inScope(node)) return false;
-    this.current = key; node.element.focus({ preventScroll: true }); node.element.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    this.current = key; node.element.focus({ preventScroll: true }); this.scrollNearestContainer(node.element);
     this.listeners.forEach((listener) => listener(key)); return true;
   }
   select() { this.nodes.get(this.current)?.onSelect(); }
@@ -39,4 +39,23 @@ export class FocusManager {
   }
   focusFirst() { const first = [...this.nodes.values()].filter((node) => this.inScope(node)).sort((a,b) => a.index-b.index)[0]; return first ? this.focus(first.key) : false; }
   private inScope(node: FocusNode) { return this.scope === 'root' || node.key.startsWith(`${this.scope}:`); }
+  private scrollNearestContainer(element: HTMLElement) {
+    let container = element.parentElement;
+    while (container) {
+      const style = window.getComputedStyle(container);
+      const scrollsY = /^(auto|scroll)$/.test(style.overflowY) && container.scrollHeight > container.clientHeight;
+      const scrollsX = /^(auto|scroll)$/.test(style.overflowX) && container.scrollWidth > container.clientWidth;
+      if (scrollsY || scrollsX) {
+        const item = element.getBoundingClientRect();
+        const viewport = container.getBoundingClientRect();
+        const margin = 8;
+        if (scrollsY && item.top < viewport.top + margin) container.scrollTop += item.top - viewport.top - margin;
+        else if (scrollsY && item.bottom > viewport.bottom - margin) container.scrollTop += item.bottom - viewport.bottom + margin;
+        if (scrollsX && item.left < viewport.left + margin) container.scrollLeft += item.left - viewport.left - margin;
+        else if (scrollsX && item.right > viewport.right - margin) container.scrollLeft += item.right - viewport.right + margin;
+        return;
+      }
+      container = container.parentElement;
+    }
+  }
 }
