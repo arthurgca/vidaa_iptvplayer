@@ -5,6 +5,7 @@ import { useTranslate } from '../i18n/I18nContext';
 import { LANGUAGES, type Language } from '../i18n';
 import { Focusable, useFocusProxy } from '../navigation/FocusContext';
 import type { AppConfig } from '../types';
+import { APP_VERSION } from '../version';
 
 const useFieldProxy = (focusKey: string, index: number, activate: () => void) =>
   useFocusProxy({ focusKey, group: 'settings-controls', index, orientation: 'vertical', activate });
@@ -40,7 +41,10 @@ interface SettingsProps { firstRun?: boolean; language: Language; setLanguage: (
 export function Settings({ firstRun = false, language, setLanguage, saved }: SettingsProps) {
   const t = useTranslate();
   const [config, setConfig] = useState<AppConfig>(); const [error, setError] = useState(''); const [message, setMessage] = useState(''); const [busy, setBusy] = useState(false);
+  // The backend reports its own version so a TV still serving a cached bundle shows up as a mismatch.
+  const [serverVersion, setServerVersion] = useState(APP_VERSION);
   useEffect(() => { api.config().then(setConfig).catch((reason) => setError(reason.message)); }, []);
+  useEffect(() => { api.status().then((status) => setServerVersion(status.version)).catch(() => undefined); }, []);
   useEffect(() => {
     if (!firstRun) return;
     const timer = window.setInterval(() => { api.status().then((status) => { if (status.configured) saved(); }).catch(() => undefined); }, 3000);
@@ -81,5 +85,7 @@ export function Settings({ firstRun = false, language, setLanguage, saved }: Set
         <Focusable focusKey="settings:save" group="settings-controls" index={11} orientation="vertical" disabled={busy} onSelect={() => run(() => api.saveConfig({ ...config, language }), t('settings.saved'), saved)} className="primary-button">{t('settings.save')}</Focusable>
         {!firstRun && <Focusable focusKey="settings:refresh" group="settings-controls" index={12} orientation="vertical" disabled={busy} onSelect={() => run(api.refresh, t('settings.refreshed'))} className="secondary-button">{t('settings.refresh')}</Focusable>}
       </div>
-    </form></main>;
+    </form>
+    <footer className="app-version">{serverVersion === APP_VERSION ? t('settings.version', { version: APP_VERSION }) : t('settings.versionMismatch', { app: APP_VERSION, server: serverVersion })}</footer>
+  </main>;
 }

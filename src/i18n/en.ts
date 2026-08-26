@@ -137,7 +137,9 @@ export const en = {
   'settings.save': 'Save',
   'settings.saved': 'Settings saved.',
   'settings.refresh': 'Refresh IPTV Data',
-  'settings.refreshed': 'IPTV and EPG caches refreshed.'
+  'settings.refreshed': 'IPTV and EPG caches refreshed.',
+  'settings.version': 'App version {version}',
+  'settings.versionMismatch': 'App {app} · server {server} — reload the TV to pick up the newer build'
 };
 
 export type TranslationKey = keyof typeof en;

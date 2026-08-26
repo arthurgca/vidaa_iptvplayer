@@ -223,6 +223,7 @@ div.poster { min-height: 8rem }
 .form-actions { display: flex; flex-wrap: wrap; gap: 1rem }
 .form-message { margin: 0; font-size: 1rem; font-weight: 700 }
 .success { color: #7de8ae }
+.app-version { flex: none; padding-top: .7rem; text-align: right; color: var(--text-faint); font-size: .82rem; font-weight: 700; font-variant-numeric: tabular-nums }
 
 /* ---- Player -------------------------------------------------------------- */
 .player-screen { position: relative; width: 100%; height: 100%; background: #000; overflow: hidden }

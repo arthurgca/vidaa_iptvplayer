@@ -6,6 +6,7 @@ import { demoCategories, demoChannels, demoEpisodes, demoSeries, demoVod } from 
 import { epgForChannel, epgStatus, initEpg, refreshEpg } from './epg/service.js';
 import { initStore, library } from './store.js';
 import type { Category, Channel, Favorite, HistoryItem, SeriesItem, VodItem } from './types.js';
+import { APP_VERSION } from './version.js';
 import { clearXtreamCache, streamUrl, validateAccount, xtream } from './xtream/client.js';
 import { normalizeCategories, normalizeChannels, normalizeSeries, normalizeSeriesInfo, normalizeVod, normalizeVodInfo } from './xtream/normalizer.js';
 
@@ -55,8 +56,8 @@ async function series(categoryId?: string): Promise<SeriesItem[]> {
   return normalizeSeries(await xtream('get_series', categoryId ? { category_id: categoryId } : {}));
 }
 
-app.get('/health', (_req, res) => res.json({ status: 'ok' }));
-app.get('/api/status', (_req, res) => res.json({ configured: publicConfig().configured, demoMode: getConfig().demoMode, language: getConfig().language, languageConfigured: languageConfigured(), epg: epgStatus() }));
+app.get('/health', (_req, res) => res.json({ status: 'ok', version: APP_VERSION }));
+app.get('/api/status', (_req, res) => res.json({ version: APP_VERSION, configured: publicConfig().configured, demoMode: getConfig().demoMode, language: getConfig().language, languageConfigured: languageConfigured(), epg: epgStatus() }));
 app.get('/api/config', (_req, res) => res.json(publicConfig()));
 app.put('/api/config', asyncRoute(async (req, res) => {
   const update = req.body as Record<string, unknown>;

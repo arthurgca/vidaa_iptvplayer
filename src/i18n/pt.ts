@@ -135,5 +135,7 @@ export const pt: Dictionary = {
   'settings.save': 'Salvar',
   'settings.saved': 'Configurações salvas.',
   'settings.refresh': 'Atualizar dados de IPTV',
-  'settings.refreshed': 'Caches de IPTV e EPG atualizados.'
+  'settings.refreshed': 'Caches de IPTV e EPG atualizados.',
+  'settings.version': 'Versão do app {version}',
+  'settings.versionMismatch': 'App {app} · servidor {server} — recarregue a TV para usar a versão mais recente'
 };

@@ -21,7 +21,7 @@ Open `http://SERVER-IP:8080`. Check the container with:
 
 ```bash
 curl http://SERVER-IP:8080/health
-# {"status":"ok"}
+# {"status":"ok","version":"1.1.0"}
 ```
 
 Configuration, EPG cache, favorites, and history persist in the `vidaa-iptv-data` Docker volume (mounted as `/data`). The fixed volume name keeps the data across Portainer Git-stack repulls and ordinary redeployments. One shared profile is intentional.
@@ -140,7 +140,27 @@ npm run build
 npm start
 ```
 
-Tests cover focus movement, Back-stack restoration, Xtream normalization, stream URL generation, XMLTV parsing/date offsets, and EPG matching.
+Tests cover focus movement, Back-stack restoration, Xtream normalization, stream URL generation, XMLTV parsing/date offsets, EPG matching, and that every version source agrees.
+
+## Versioning
+
+`package.json` is the single source of truth. The version reaches the running system three ways:
+
+- the server reads it at startup and reports it on `GET /health` and `GET /api/status`
+- the Vite build injects it into the bundle, so the web app knows which build it is
+- Settings shows it at the bottom of the screen
+
+Because a TV can keep serving a cached bundle after a redeploy, Settings compares the bundle's
+version against the server's and calls out a mismatch, which is the signal to reload the TV.
+
+To cut a release, add the section to `CHANGELOG.md` first, then:
+
+```bash
+npm version patch   # or minor / major - commits and tags
+git push --follow-tags
+```
+
+Rebuild the image afterwards so the deployed server reports the new version.
 
 ## API overview
 

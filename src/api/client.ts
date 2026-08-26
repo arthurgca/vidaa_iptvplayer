@@ -1,7 +1,7 @@
 import type { Language } from '../i18n';
 import type { AppConfig, Category, Channel, EpgNow, Favorite, HistoryItem, MediaKind, Page, SeriesItem, VodItem, Episode } from '../types';
 
-export interface AppStatus { configured: boolean; demoMode: boolean; language: Language; languageConfigured: boolean }
+export interface AppStatus { version: string; configured: boolean; demoMode: boolean; language: Language; languageConfigured: boolean }
 
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, { ...options, headers: { 'content-type': 'application/json', ...options?.headers } });
