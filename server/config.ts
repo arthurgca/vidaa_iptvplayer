@@ -55,6 +55,16 @@ export async function saveConfig(update: Partial<AppConfig>): Promise<AppConfig>
   return getConfig();
 }
 
+/** Remove account and catalog sources without resetting device-facing preferences. */
+export async function clearIptvConfig(): Promise<AppConfig> {
+  const cleared = { ...saved };
+  const iptvKeys: (keyof AppConfig)[] = ['xtreamBaseUrl', 'xtreamUsername', 'xtreamPassword', 'xmltvUrl', 'demoMode'];
+  for (const key of iptvKeys) delete cleared[key];
+  saved = cleared;
+  await writeFile(configPath, JSON.stringify(saved, null, 2), 'utf8');
+  return getConfig();
+}
+
 // Until someone has actually chosen one, the TV's own language is a better guess than our default,
 // so the client is told whether `language` is a real preference or just the fallback.
 export const languageConfigured = () => isLanguage(saved.language) || isLanguage(process.env.LANGUAGE);

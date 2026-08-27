@@ -1,4 +1,4 @@
-import { readFile, rename, writeFile } from 'node:fs/promises';
+import { readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { dataDir, getConfig } from '../config.js';
 import { demoPrograms } from '../demo.js';
@@ -11,6 +11,15 @@ interface EpgCache extends ParsedXmltv { refreshedAt: number }
 const cachePath = path.join(dataDir, 'epg-cache.json');
 let cache: EpgCache = { programs: [], channelNames: {}, refreshedAt: 0 };
 let refreshing: Promise<void> | null = null;
+let generation = 0;
+
+async function persistCache(value: EpgCache, expectedGeneration = generation) {
+  const temporary = `${cachePath}.${expectedGeneration}.tmp`;
+  await writeFile(temporary, JSON.stringify(value), 'utf8');
+  if (expectedGeneration !== generation) { await unlink(temporary).catch(() => undefined); return false; }
+  await rename(temporary, cachePath);
+  return true;
+}
 
 export async function initEpg() {
   try { cache = JSON.parse(await readFile(cachePath, 'utf8')) as EpgCache; } catch { /* first run */ }
@@ -26,6 +35,7 @@ export async function refreshEpg(force = false): Promise<void> {
   if (config.demoMode) { cache = { programs: demoPrograms(), channelNames: {}, refreshedAt: Date.now() }; return; }
   if (!config.xmltvUrl) return;
   if (!force && Date.now() - cache.refreshedAt < config.epgRefreshHours * 3600_000) return;
+  const startedInGeneration = generation;
   refreshing = (async () => {
     const url = new URL(config.xmltvUrl);
     if (!['http:', 'https:'].includes(url.protocol)) throw new Error('XMLTV URL must use HTTP or HTTPS.');
@@ -39,12 +49,20 @@ export async function refreshEpg(force = false): Promise<void> {
       const xml = await response.text();
       if (xml.length > 100 * 1024 * 1024) throw new Error('XMLTV file exceeds the 100 MB safety limit.');
       const parsed = parseXmltv(xml);
-      cache = { ...parsed, refreshedAt: Date.now() };
-      const temporary = `${cachePath}.tmp`;
-      await writeFile(temporary, JSON.stringify(cache), 'utf8'); await rename(temporary, cachePath);
+      if (startedInGeneration !== generation) return;
+      const next = { ...parsed, refreshedAt: Date.now() };
+      if (!await persistCache(next, startedInGeneration) || startedInGeneration !== generation) return;
+      cache = next;
     } finally { clearTimeout(timeout); }
   })().finally(() => { refreshing = null; });
   return refreshing;
+}
+
+/** Clear memory and disk, and prevent an older in-flight refresh from restoring stale data. */
+export async function clearEpg() {
+  generation += 1;
+  cache = { programs: [], channelNames: {}, refreshedAt: 0 };
+  await persistCache(cache);
 }
 
 function programWindow(programs: Program[]) {

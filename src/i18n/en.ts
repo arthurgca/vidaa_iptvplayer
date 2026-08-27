@@ -139,7 +139,14 @@ export const en = {
   'settings.refresh': 'Refresh IPTV Data',
   'settings.refreshed': 'IPTV and EPG caches refreshed.',
   'settings.version': 'App version {version}',
-  'settings.versionMismatch': 'App {app} · server {server} — reload the TV to pick up the newer build'
+  'settings.versionMismatch': 'App {app} · server {server} — reload the TV to pick up the newer build',
+  'settings.clearContent': 'Clear Content Information',
+  'settings.clearContentConfirm': 'Press OK Again to Clear Content',
+  'settings.contentCleared': 'Live TV, movie, series, EPG, favorites, and watch history information was cleared. Provider settings were kept.',
+  'settings.clear': 'Clear Everything & Credentials',
+  'settings.clearConfirm': 'Press OK Again to Clear Everything',
+  'settings.cleared': 'All IPTV data, favorites, watch history, and saved provider credentials were cleared.',
+  'settings.clearedEnvironment': 'Saved IPTV data was cleared. Values set by the server environment remain active.',
 };
 
 export type TranslationKey = keyof typeof en;

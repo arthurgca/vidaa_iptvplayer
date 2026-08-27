@@ -137,5 +137,12 @@ export const pt: Dictionary = {
   'settings.refresh': 'Atualizar dados de IPTV',
   'settings.refreshed': 'Caches de IPTV e EPG atualizados.',
   'settings.version': 'Versão do app {version}',
-  'settings.versionMismatch': 'App {app} · servidor {server} — recarregue a TV para usar a versão mais recente'
+  'settings.versionMismatch': 'App {app} · servidor {server} — recarregue a TV para usar a versão mais recente',
+  'settings.clearContent': 'Limpar informações do conteúdo',
+  'settings.clearContentConfirm': 'Pressione OK novamente para limpar o conteúdo',
+  'settings.contentCleared': 'As informações de TV ao vivo, filmes, séries, EPG, favoritos e histórico foram apagadas. Os dados do provedor foram mantidos.',
+  'settings.clear': 'Limpar tudo e as credenciais',
+  'settings.clearConfirm': 'Pressione OK novamente para limpar tudo',
+  'settings.cleared': 'Todos os dados de IPTV, favoritos, histórico e credenciais salvas do provedor foram apagados.',
+  'settings.clearedEnvironment': 'Os dados salvos foram apagados. Os valores definidos no ambiente do servidor continuam ativos.',
 };

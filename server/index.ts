@@ -1,9 +1,9 @@
 import express, { type NextFunction, type Request, type Response } from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { initConfig, getConfig, isLanguage, languageConfigured, publicConfig, saveConfig } from './config.js';
+import { clearIptvConfig, initConfig, getConfig, isLanguage, languageConfigured, publicConfig, saveConfig } from './config.js';
 import { demoCategories, demoChannels, demoEpisodes, demoSeries, demoVod } from './demo.js';
-import { epgForChannel, epgStatus, initEpg, refreshEpg } from './epg/service.js';
+import { clearEpg, epgForChannel, epgStatus, initEpg, refreshEpg } from './epg/service.js';
 import { initStore, library } from './store.js';
 import type { Category, Channel, Favorite, HistoryItem, SeriesItem, VodItem } from './types.js';
 import { APP_VERSION } from './version.js';
@@ -85,6 +85,17 @@ app.post('/api/config/test', asyncRoute(async (req, res) => {
 }));
 app.post('/api/refresh', asyncRoute(async (_req, res) => {
   clearXtreamCache(); await refreshEpg(true); res.json({ ok: true, epg: epgStatus() });
+}));
+app.delete('/api/data', asyncRoute(async (_req, res) => {
+  clearXtreamCache();
+  await Promise.all([clearEpg(), library.clear()]);
+  res.json(publicConfig());
+}));
+app.delete('/api/data/all', asyncRoute(async (_req, res) => {
+  await clearIptvConfig();
+  clearXtreamCache();
+  await Promise.all([clearEpg(), library.clear()]);
+  res.json(publicConfig());
 }));
 
 app.get('/api/xtream/:kind/live', asyncRoute(async (req, res) => {

@@ -165,10 +165,12 @@ div.poster { min-height: 8rem }
 .detail-copy p { max-height: 9.3rem; overflow: hidden }
 .meta { color: var(--focus); font-size: 1rem; font-weight: 700; margin: .9rem 0 }
 .detail-actions { display: flex; gap: 1rem; margin-top: 2rem }
-.primary-button, .secondary-button { border: .14rem solid transparent; border-radius: var(--radius); padding: .8rem 1.6rem; color: #fff; font-size: 1rem; font-weight: 800; background: var(--accent) }
+.primary-button, .secondary-button, .danger-button { border: .14rem solid transparent; border-radius: var(--radius); padding: .8rem 1.6rem; color: #fff; font-size: 1rem; font-weight: 800; background: var(--accent) }
 .secondary-button { background: var(--surface-3); border-color: var(--line-strong) }
+.danger-button { color: #ffd6d6; background: #552326; border-color: #9b4549 }
 .focusable.primary-button:focus { background: #2ba4ee; color: #fff }
 .focusable.secondary-button:focus, .focusable.epg-favorite:focus, .focusable.toggle-control:focus { background: var(--surface-3); color: #fff }
+.focusable.danger-button:focus { color: #fff; background: #84383d; border-color: #ff8f94 }
 
 /* ---- Series details ------------------------------------------------------ */
 .series-hero { flex: none; display: grid; grid-template-columns: 8.5rem 1fr; gap: 1.8rem; padding-bottom: 1.3rem }

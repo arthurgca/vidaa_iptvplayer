@@ -10,6 +10,14 @@ so the tagged commit already carries its notes.
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-08-26
+
+### Added
+
+- Settings now has separately confirmed actions to clear content information
+  while retaining the provider setup, or to clear everything including saved
+  provider credentials.
+
 ## [1.1.0] - 2026-08-26
 
 ### Added

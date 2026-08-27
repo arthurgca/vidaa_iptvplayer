@@ -22,6 +22,8 @@ export const api = {
   saveConfig: (value: Partial<AppConfig>) => request<AppConfig>('/api/config', { method: 'PUT', body: JSON.stringify(value) }),
   testConfig: (value: Partial<AppConfig>) => request<{ ok: boolean; message: string }>('/api/config/test', { method: 'POST', body: JSON.stringify(value) }),
   refresh: () => request<{ ok: boolean }>('/api/refresh', { method: 'POST' }),
+  clearData: () => request<AppConfig>('/api/data', { method: 'DELETE' }),
+  clearAllData: () => request<AppConfig>('/api/data/all', { method: 'DELETE' }),
   liveCategories: () => request<Category[]>('/api/xtream/categories/live'),
   channels: (categoryId?: string, offset = 0, search = '') => request<Page<Channel>>(`/api/xtream/streams/live?${query({ category_id: categoryId, offset, limit: 100, search })}`),
   vodCategories: () => request<Category[]>('/api/xtream/vod/categories'),

@@ -30,5 +30,9 @@ export const library = {
   async watched(value: HistoryItem) {
     data.history = data.history.filter((item) => !(item.type === value.type && item.id === value.id));
     data.history.unshift(value); data.history = data.history.slice(0, 100); await persist(); return value;
+  },
+  async clear() {
+    data = { favorites: [], history: [] };
+    await persist();
   }
 };

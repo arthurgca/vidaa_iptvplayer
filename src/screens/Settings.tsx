@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { api } from '../api/client';
+import { clearEpgCache } from '../api/epg';
 import { ErrorState, Spinner } from '../components/common';
 import { useTranslate } from '../i18n/I18nContext';
 import { LANGUAGES, type Language } from '../i18n';
@@ -36,11 +37,12 @@ function RemoteSelect({ focusKey, index, label, value, options, change }: Remote
   </div></label>;
 }
 
-interface SettingsProps { firstRun?: boolean; language: Language; setLanguage: (language: Language) => void; saved: () => void }
+interface SettingsProps { firstRun?: boolean; language: Language; setLanguage: (language: Language) => void; saved: () => void; cleared: () => void }
 
-export function Settings({ firstRun = false, language, setLanguage, saved }: SettingsProps) {
+export function Settings({ firstRun = false, language, setLanguage, saved, cleared }: SettingsProps) {
   const t = useTranslate();
   const [config, setConfig] = useState<AppConfig>(); const [error, setError] = useState(''); const [message, setMessage] = useState(''); const [busy, setBusy] = useState(false);
+  const [confirmClear, setConfirmClear] = useState<'content' | 'all'>();
   // The backend reports its own version so a TV still serving a cached bundle shows up as a mismatch.
   const [serverVersion, setServerVersion] = useState(APP_VERSION);
   useEffect(() => { api.config().then(setConfig).catch((reason) => setError(reason.message)); }, []);
@@ -50,6 +52,11 @@ export function Settings({ firstRun = false, language, setLanguage, saved }: Set
     const timer = window.setInterval(() => { api.status().then((status) => { if (status.configured) saved(); }).catch(() => undefined); }, 3000);
     return () => window.clearInterval(timer);
   }, [firstRun]);
+  useEffect(() => {
+    if (!confirmClear) return;
+    const timer = window.setTimeout(() => setConfirmClear(undefined), 5000);
+    return () => window.clearTimeout(timer);
+  }, [confirmClear]);
   if (!config) return error ? <ErrorState error={error} /> : <Spinner label={t('settings.loading')} />;
   const field = (key: keyof AppConfig, value: string | boolean | number) => setConfig({ ...config, [key]: value });
   const run = (action: () => Promise<unknown>, success: string, after?: () => void) => { setBusy(true); setError(''); setMessage(''); action().then(() => { setMessage(success); after?.(); }).catch((reason) => setError(reason.message)).finally(() => setBusy(false)); };
@@ -60,6 +67,16 @@ export function Settings({ firstRun = false, language, setLanguage, saved }: Set
     const next = value === 'pt' ? 'pt' : 'en';
     setLanguage(next); setConfig({ ...config, language: next });
     api.saveConfig({ language: next }).catch(() => undefined);
+  };
+  const clearData = (scope: 'content' | 'all') => {
+    if (confirmClear !== scope) { setConfirmClear(scope); setError(''); setMessage(''); return; }
+    setBusy(true); setError(''); setMessage('');
+    const action = scope === 'all' ? api.clearAllData : api.clearData;
+    action().then((next) => {
+      clearEpgCache(); setConfig(next); setConfirmClear(undefined); cleared();
+      if (scope === 'content') setMessage(t('settings.contentCleared'));
+      else setMessage(next.configured ? t('settings.clearedEnvironment') : t('settings.cleared'));
+    }).catch((reason) => setError(reason.message)).finally(() => setBusy(false));
   };
   return <main className="screen settings-screen"><header><span className="eyebrow">{firstRun ? t('settings.firstRun.eyebrow') : t('settings.eyebrow')}</span><h1>{firstRun ? t('settings.firstRun.title') : t('settings.title')}</h1><p>{firstRun ? t('settings.firstRun.help') : t('settings.help')}</p></header>
     <form className="settings-form" onSubmit={(e) => e.preventDefault()}>
@@ -84,6 +101,8 @@ export function Settings({ firstRun = false, language, setLanguage, saved }: Set
         <Focusable focusKey="settings:test" group="settings-controls" index={10} orientation="vertical" disabled={busy} onSelect={() => run(() => api.testConfig(config), t('settings.testOk'))} className="secondary-button">{t('settings.test')}</Focusable>
         <Focusable focusKey="settings:save" group="settings-controls" index={11} orientation="vertical" disabled={busy} onSelect={() => run(() => api.saveConfig({ ...config, language }), t('settings.saved'), saved)} className="primary-button">{t('settings.save')}</Focusable>
         {!firstRun && <Focusable focusKey="settings:refresh" group="settings-controls" index={12} orientation="vertical" disabled={busy} onSelect={() => run(api.refresh, t('settings.refreshed'))} className="secondary-button">{t('settings.refresh')}</Focusable>}
+        {!firstRun && <Focusable focusKey="settings:clear-content" group="settings-controls" index={13} orientation="vertical" disabled={busy} onSelect={() => clearData('content')} className="secondary-button">{confirmClear === 'content' ? t('settings.clearContentConfirm') : t('settings.clearContent')}</Focusable>}
+        {!firstRun && <Focusable focusKey="settings:clear-all" group="settings-controls" index={14} orientation="vertical" disabled={busy} onSelect={() => clearData('all')} className="danger-button">{confirmClear === 'all' ? t('settings.clearConfirm') : t('settings.clear')}</Focusable>}
       </div>
     </form>
     <footer className="app-version">{serverVersion === APP_VERSION ? t('settings.version', { version: APP_VERSION }) : t('settings.versionMismatch', { app: APP_VERSION, server: serverVersion })}</footer>
