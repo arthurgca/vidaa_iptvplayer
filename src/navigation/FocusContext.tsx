@@ -31,8 +31,9 @@ export function useFocusProxy({ focusKey, group, index, columns, orientation = '
   activateRef.current = activate;
   useEffect(() => {
     if (!proxy.current) return;
-    focus.register({ key: focusKey, group, index, columns, orientation, neighbors, autoFocus, onSelect: () => activateRef.current(), element: proxy.current });
-    return () => focus.unregister(focusKey);
+    const element = proxy.current;
+    focus.register({ key: focusKey, group, index, columns, orientation, neighbors, autoFocus, onSelect: () => activateRef.current(), element });
+    return () => focus.unregister(focusKey, element);
   }, [focus, focusKey, group, index, columns, orientation, autoFocus, JSON.stringify(neighbors)]);
   return {
     ref: proxy,
@@ -50,10 +51,12 @@ interface FocusableProps {
 
 export function Focusable({ focusKey, group, index, columns, orientation, neighbors, onSelect, className = '', children, disabled, title, onFocus }: FocusableProps) {
   const focus = useFocusManager(); const ref = useRef<HTMLButtonElement>(null);
+  const selectRef = useRef(onSelect); selectRef.current = onSelect;
   useEffect(() => {
     if (!ref.current || disabled) return;
-    focus.register({ key: focusKey, group, index, columns, orientation, neighbors, onSelect, element: ref.current });
-    return () => focus.unregister(focusKey);
-  }, [focus, focusKey, group, index, columns, orientation, disabled, onSelect, JSON.stringify(neighbors)]);
+    const element = ref.current;
+    focus.register({ key: focusKey, group, index, columns, orientation, neighbors, onSelect: () => selectRef.current(), element });
+    return () => focus.unregister(focusKey, element);
+  }, [focus, focusKey, group, index, columns, orientation, disabled, JSON.stringify(neighbors)]);
   return <button ref={ref} type="button" tabIndex={-1} className={`focusable ${className}`} onClick={onSelect} onFocus={onFocus} onMouseEnter={() => focus.focus(focusKey)} disabled={disabled} title={title}>{children}</button>;
 }

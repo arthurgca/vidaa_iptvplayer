@@ -10,6 +10,12 @@ so the tagged commit already carries its notes.
 
 ## [Unreleased]
 
+### Changed
+
+- Directional navigation now follows the actual positions of controls before
+  consulting list indexes, prevents grid row wrapping, and keeps button focus
+  registrations stable across rerenders.
+
 ## [1.2.2] - 2026-08-26
 
 ### Fixed

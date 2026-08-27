@@ -16,8 +16,17 @@ export class FocusManager {
   private scope = 'root';
   private listeners = new Set<(key: string) => void>();
 
-  register(node: FocusNode) { this.nodes.set(node.key, node); if (!this.current && node.autoFocus !== false) this.focus(node.key); }
-  unregister(key: string) { this.nodes.delete(key); if (this.previousKey === key) this.previousKey = ''; }
+  register(node: FocusNode) {
+    this.nodes.set(node.key, node);
+    if (!this.current && node.autoFocus !== false) this.focus(node.key);
+    else if (this.current === node.key) this.focusWithoutScrolling(node.element);
+  }
+  unregister(key: string, element?: HTMLElement) {
+    const registered = this.nodes.get(key);
+    // A replaced button may clean up after its successor registered with the same key.
+    if (!registered || (element && registered.element !== element)) return;
+    this.nodes.delete(key); if (this.previousKey === key) this.previousKey = '';
+  }
   subscribe(listener: (key: string) => void) { this.listeners.add(listener); return () => this.listeners.delete(listener); }
   get focused() { return this.current; }
   get previous() { return this.previousKey; }
@@ -33,19 +42,28 @@ export class FocusManager {
     const current = this.nodes.get(this.current);
     if (!current) return this.focusFirst();
     for (const neighbor of this.neighborKeys(current.neighbors?.[direction])) if (this.focus(neighbor)) return true;
+    const spatial = this.spatialNeighbor(current, direction);
+    if (spatial) return this.focus(spatial.key);
+    return this.focusLogicalNeighbor(current, direction);
+  }
+  private focusLogicalNeighbor(current: FocusNode, direction: Direction) {
     const group = [...this.nodes.values()].filter((node) => node.group === current.group && this.inScope(node)).sort((a,b) => a.index - b.index);
     const orientation = current.orientation || 'vertical';
-    let delta = 0;
-    if (orientation === 'vertical') delta = direction === 'up' ? -1 : direction === 'down' ? 1 : 0;
-    if (orientation === 'horizontal') delta = direction === 'left' ? -1 : direction === 'right' ? 1 : 0;
-    if (orientation === 'grid') delta = direction === 'left' ? -1 : direction === 'right' ? 1 : direction === 'up' ? -(current.columns || 1) : current.columns || 1;
-    if (delta) {
-      const position = group.findIndex((node) => node.key === current.key);
-      const target = group[position + delta];
-      if (target && this.focus(target.key)) return true;
+    const position = group.findIndex((node) => node.key === current.key);
+    let targetPosition = -1;
+    if (orientation === 'vertical' && direction === 'up') targetPosition = position - 1;
+    if (orientation === 'vertical' && direction === 'down') targetPosition = position + 1;
+    if (orientation === 'horizontal' && direction === 'left') targetPosition = position - 1;
+    if (orientation === 'horizontal' && direction === 'right') targetPosition = position + 1;
+    if (orientation === 'grid') {
+      const columns = current.columns || 1; const column = position % columns;
+      if (direction === 'left' && column > 0) targetPosition = position - 1;
+      if (direction === 'right' && column < columns - 1) targetPosition = position + 1;
+      if (direction === 'up') targetPosition = position - columns;
+      if (direction === 'down') targetPosition = position + columns;
     }
-    const spatial = this.spatialNeighbor(current, direction);
-    return spatial ? this.focus(spatial.key) : false;
+    const target = group[targetPosition];
+    return target ? this.focus(target.key) : false;
   }
   focusFirst() {
     const candidates = [...this.nodes.values()].filter((node) => this.inScope(node)).sort((a,b) => a.index-b.index);
@@ -57,20 +75,29 @@ export class FocusManager {
     return (Array.isArray(target) ? target : [target]).flatMap((key) => key !== PREVIOUS_FOCUS ? [key]
       : this.previousKey && this.previousKey !== this.current ? [this.previousKey] : []);
   }
-  /** Geometry is the fallback for mixed layouts such as Settings, whose rows have different column counts. */
+  /** Screen geometry is the source of truth; logical indexes only cover runtimes that cannot report layout. */
   private spatialNeighbor(current: FocusNode, direction: Direction) {
     if (typeof current.element.getBoundingClientRect !== 'function') return undefined;
     const origin = current.element.getBoundingClientRect();
+    if (origin.width <= 0 || origin.height <= 0) return undefined;
     const originX = (origin.left + origin.right) / 2; const originY = (origin.top + origin.bottom) / 2;
     let best: FocusNode | undefined; let bestScore = Number.POSITIVE_INFINITY;
     for (const candidate of this.nodes.values()) {
       if (candidate.key === current.key || !this.inScope(candidate) || typeof candidate.element.getBoundingClientRect !== 'function') continue;
       const rect = candidate.element.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) continue;
       const dx = (rect.left + rect.right) / 2 - originX; const dy = (rect.top + rect.bottom) / 2 - originY;
       const primary = direction === 'left' ? -dx : direction === 'right' ? dx : direction === 'up' ? -dy : dy;
       if (primary <= 1) continue;
-      const cross = direction === 'left' || direction === 'right' ? Math.abs(dy) : Math.abs(dx);
-      const score = primary + cross * 2;
+      const horizontal = direction === 'left' || direction === 'right';
+      const crossCenter = horizontal ? Math.abs(dy) : Math.abs(dx);
+      // Stay inside a 90-degree cone: Left/Right must be primarily horizontal, and Up/Down vertical.
+      if (crossCenter > primary) continue;
+      const crossGap = horizontal
+        ? Math.max(0, origin.top - rect.bottom, rect.top - origin.bottom)
+        : Math.max(0, origin.left - rect.right, rect.left - origin.right);
+      // Controls sharing a row/column win; center distance breaks ties within that lane.
+      const score = primary + crossGap * 4 + crossCenter * .01;
       if (score < bestScore) { best = candidate; bestScore = score; }
     }
     return best;
