@@ -10,6 +10,13 @@ so the tagged commit already carries its notes.
 
 ## [Unreleased]
 
+## [1.2.2] - 2026-08-26
+
+### Fixed
+
+- Repeated movies, series, and provider categories now keep distinct card and
+  focus identities, so every visible occurrence remains selectable.
+
 ## [1.2.1] - 2026-08-26
 
 ### Fixed
