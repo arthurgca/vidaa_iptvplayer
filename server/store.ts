@@ -3,9 +3,9 @@ import path from 'node:path';
 import { dataDir } from './config.js';
 import type { Favorite, HistoryItem } from './types.js';
 
-interface StoreData { favorites: Favorite[]; history: HistoryItem[] }
+interface StoreData { favorites: Favorite[]; history: HistoryItem[]; contentCleared: boolean }
 const storePath = path.join(dataDir, 'library.json');
-let data: StoreData = { favorites: [], history: [] };
+let data: StoreData = { favorites: [], history: [], contentCleared: false };
 
 export async function initStore() {
   try { data = { ...data, ...JSON.parse(await readFile(storePath, 'utf8')) }; } catch { /* first run */ }
@@ -18,6 +18,7 @@ async function persist() {
 }
 
 export const library = {
+  contentCleared: () => data.contentCleared,
   favorites: () => data.favorites,
   async favorite(value: Favorite) {
     data.favorites = data.favorites.filter((item) => !(item.type === value.type && item.id === value.id));
@@ -32,7 +33,12 @@ export const library = {
     data.history.unshift(value); data.history = data.history.slice(0, 100); await persist(); return value;
   },
   async clear() {
-    data = { favorites: [], history: [] };
+    data = { favorites: [], history: [], contentCleared: true };
+    await persist();
+  },
+  async restoreContent() {
+    if (!data.contentCleared) return;
+    data.contentCleared = false;
     await persist();
   }
 };

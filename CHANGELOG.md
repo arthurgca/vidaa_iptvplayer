@@ -10,6 +10,16 @@ so the tagged commit already carries its notes.
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-08-26
+
+### Fixed
+
+- Clearing content now keeps catalogs empty until IPTV data is explicitly
+  refreshed or the provider configuration changes.
+- Remote-control navigation now uses the on-screen position of controls as a
+  fallback, enabling left/right movement through mixed menu layouts such as
+  Settings.
+
 ## [1.2.0] - 2026-08-26
 
 ### Added

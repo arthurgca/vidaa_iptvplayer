@@ -35,6 +35,7 @@ const page = <T>(items: T[], req: Request) => {
 };
 
 async function categories(kind: 'live' | 'vod' | 'series'): Promise<Category[]> {
+  if (library.contentCleared()) return [];
   const config = getConfig();
   if (config.demoMode) return demoCategories[kind] || [];
   const actions = { live: 'get_live_categories', vod: 'get_vod_categories', series: 'get_series_categories' } as const;
@@ -42,16 +43,19 @@ async function categories(kind: 'live' | 'vod' | 'series'): Promise<Category[]> 
 }
 
 async function live(categoryId?: string): Promise<Channel[]> {
+  if (library.contentCleared()) return [];
   if (getConfig().demoMode) return categoryId ? demoChannels.filter((item) => item.categoryId === categoryId) : demoChannels;
   return normalizeChannels(await xtream('get_live_streams', categoryId ? { category_id: categoryId } : {}));
 }
 
 async function vod(categoryId?: string): Promise<VodItem[]> {
+  if (library.contentCleared()) return [];
   if (getConfig().demoMode) return categoryId ? demoVod.filter((item) => item.categoryId === categoryId) : demoVod;
   return normalizeVod(await xtream('get_vod_streams', categoryId ? { category_id: categoryId } : {}));
 }
 
 async function series(categoryId?: string): Promise<SeriesItem[]> {
+  if (library.contentCleared()) return [];
   if (getConfig().demoMode) return categoryId ? demoSeries.filter((item) => item.categoryId === categoryId) : demoSeries;
   return normalizeSeries(await xtream('get_series', categoryId ? { category_id: categoryId } : {}));
 }
@@ -65,10 +69,13 @@ app.put('/api/config', asyncRoute(async (req, res) => {
   if (update.xmltvUrl && !/^https?:\/\//i.test(String(update.xmltvUrl))) throw new Error('XMLTV URL must begin with http:// or https://.');
   if (update.language !== undefined && !isLanguage(update.language)) throw new Error('Unsupported language.');
   if (!update.xtreamPassword) delete update.xtreamPassword;
+  const previous = getConfig() as unknown as Record<string, unknown>;
+  const providerChanged = ['xtreamBaseUrl', 'xtreamUsername', 'xtreamPassword', 'demoMode'].some((key) => key in update && update[key] !== previous[key]);
   const config = await saveConfig(update);
   // Saving a preference such as the language alone must not throw away a warm catalog or re-download the EPG.
   const touches = (...keys: string[]) => keys.some((key) => key in update);
   if (touches('xtreamBaseUrl', 'xtreamUsername', 'xtreamPassword', 'demoMode')) clearXtreamCache();
+  if (providerChanged) await library.restoreContent();
   if (touches('xmltvUrl', 'epgRefreshHours', 'demoMode') && (config.xmltvUrl || config.demoMode)) void refreshEpg(true);
   res.json(publicConfig(config));
 }));
@@ -84,6 +91,7 @@ app.post('/api/config/test', asyncRoute(async (req, res) => {
   res.json({ ok: true, message: 'Connection successful.' });
 }));
 app.post('/api/refresh', asyncRoute(async (_req, res) => {
+  await library.restoreContent();
   clearXtreamCache(); await refreshEpg(true); res.json({ ok: true, epg: epgStatus() });
 }));
 app.delete('/api/data', asyncRoute(async (_req, res) => {
@@ -108,6 +116,7 @@ app.get('/api/xtream/live-streams', asyncRoute(async (req, res) => res.json(page
 app.get('/api/xtream/vod/categories', asyncRoute(async (_req, res) => res.json(await categories('vod'))));
 app.get('/api/xtream/vod', asyncRoute(async (req, res) => res.json(page(await vod(stringParam(req.query.category_id) || undefined), req))));
 app.get('/api/xtream/vod/:id', asyncRoute(async (req, res) => {
+  if (library.contentCleared()) { res.status(404).end(); return; }
   const id = stringParam(req.params.id);
   const fallback = (await vod()).find((item) => item.id === id);
   if (getConfig().demoMode) { if (!fallback) { res.status(404).end(); return; } res.json(fallback); return; }
@@ -116,6 +125,7 @@ app.get('/api/xtream/vod/:id', asyncRoute(async (req, res) => {
 app.get('/api/xtream/series/categories', asyncRoute(async (_req, res) => res.json(await categories('series'))));
 app.get('/api/xtream/series', asyncRoute(async (req, res) => res.json(page(await series(stringParam(req.query.category_id) || undefined), req))));
 app.get('/api/xtream/series/:id', asyncRoute(async (req, res) => {
+  if (library.contentCleared()) { res.status(404).end(); return; }
   const id = stringParam(req.params.id);
   if (getConfig().demoMode) {
     const item = demoSeries.find((entry) => entry.id === id); if (!item) { res.status(404).end(); return; }
@@ -144,6 +154,7 @@ app.post('/api/history', asyncRoute(async (req, res) => {
 }));
 
 app.get('/api/play/:kind/:id', asyncRoute(async (req, res) => {
+  if (library.contentCleared()) { res.status(404).end(); return; }
   const kind = stringParam(req.params.kind);
   if (!['live','movie','series'].includes(kind)) { res.status(404).end(); return; }
   if (getConfig().demoMode) {

@@ -142,7 +142,7 @@ export const en = {
   'settings.versionMismatch': 'App {app} · server {server} — reload the TV to pick up the newer build',
   'settings.clearContent': 'Clear Content Information',
   'settings.clearContentConfirm': 'Press OK Again to Clear Content',
-  'settings.contentCleared': 'Live TV, movie, series, EPG, favorites, and watch history information was cleared. Provider settings were kept.',
+  'settings.contentCleared': 'Content information was cleared and provider settings were kept. Use Refresh IPTV Data to load it again.',
   'settings.clear': 'Clear Everything & Credentials',
   'settings.clearConfirm': 'Press OK Again to Clear Everything',
   'settings.cleared': 'All IPTV data, favorites, watch history, and saved provider credentials were cleared.',

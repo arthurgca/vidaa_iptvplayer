@@ -39,10 +39,13 @@ export class FocusManager {
     if (orientation === 'vertical') delta = direction === 'up' ? -1 : direction === 'down' ? 1 : 0;
     if (orientation === 'horizontal') delta = direction === 'left' ? -1 : direction === 'right' ? 1 : 0;
     if (orientation === 'grid') delta = direction === 'left' ? -1 : direction === 'right' ? 1 : direction === 'up' ? -(current.columns || 1) : current.columns || 1;
-    if (!delta) return false;
-    const position = group.findIndex((node) => node.key === current.key);
-    const target = group[position + delta];
-    return target ? this.focus(target.key) : false;
+    if (delta) {
+      const position = group.findIndex((node) => node.key === current.key);
+      const target = group[position + delta];
+      if (target && this.focus(target.key)) return true;
+    }
+    const spatial = this.spatialNeighbor(current, direction);
+    return spatial ? this.focus(spatial.key) : false;
   }
   focusFirst() {
     const candidates = [...this.nodes.values()].filter((node) => this.inScope(node)).sort((a,b) => a.index-b.index);
@@ -53,6 +56,24 @@ export class FocusManager {
     if (!target) return [];
     return (Array.isArray(target) ? target : [target]).flatMap((key) => key !== PREVIOUS_FOCUS ? [key]
       : this.previousKey && this.previousKey !== this.current ? [this.previousKey] : []);
+  }
+  /** Geometry is the fallback for mixed layouts such as Settings, whose rows have different column counts. */
+  private spatialNeighbor(current: FocusNode, direction: Direction) {
+    if (typeof current.element.getBoundingClientRect !== 'function') return undefined;
+    const origin = current.element.getBoundingClientRect();
+    const originX = (origin.left + origin.right) / 2; const originY = (origin.top + origin.bottom) / 2;
+    let best: FocusNode | undefined; let bestScore = Number.POSITIVE_INFINITY;
+    for (const candidate of this.nodes.values()) {
+      if (candidate.key === current.key || !this.inScope(candidate) || typeof candidate.element.getBoundingClientRect !== 'function') continue;
+      const rect = candidate.element.getBoundingClientRect();
+      const dx = (rect.left + rect.right) / 2 - originX; const dy = (rect.top + rect.bottom) / 2 - originY;
+      const primary = direction === 'left' ? -dx : direction === 'right' ? dx : direction === 'up' ? -dy : dy;
+      if (primary <= 1) continue;
+      const cross = direction === 'left' || direction === 'right' ? Math.abs(dy) : Math.abs(dx);
+      const score = primary + cross * 2;
+      if (score < bestScore) { best = candidate; bestScore = score; }
+    }
+    return best;
   }
   private inScope(node: FocusNode) { return this.scope === 'root' || node.key.startsWith(`${this.scope}:`); }
   private focusWithoutScrolling(element: HTMLElement) {

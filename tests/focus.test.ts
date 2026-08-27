@@ -47,6 +47,22 @@ describe('FocusManager', () => {
     manager.focus('grid:1'); manager.move('down'); expect(manager.focused).toBe('grid:5');
     manager.move('right'); expect(manager.focused).toBe('grid:6');
   });
+  it('uses element positions to navigate mixed row layouts in every direction', () => {
+    const manager = new FocusManager();
+    const positioned = (left: number, top: number) => ({
+      focus() {}, parentElement: null,
+      getBoundingClientRect: () => ({ left, right: left + 100, top, bottom: top + 40 })
+    } as unknown as HTMLElement);
+    manager.register({ key: 'settings:server', group: 'settings', index: 0, orientation: 'vertical', onSelect() {}, element: positioned(0, 0) });
+    manager.register({ key: 'settings:user', group: 'settings', index: 1, orientation: 'vertical', onSelect() {}, element: positioned(200, 0) });
+    manager.register({ key: 'settings:password', group: 'settings', index: 2, orientation: 'vertical', onSelect() {}, element: positioned(0, 80) });
+    manager.register({ key: 'settings:xmltv', group: 'settings', index: 3, orientation: 'vertical', onSelect() {}, element: positioned(200, 80) });
+    manager.move('right'); expect(manager.focused).toBe('settings:user');
+    manager.move('left'); expect(manager.focused).toBe('settings:server');
+    manager.move('down'); expect(manager.focused).toBe('settings:user');
+    manager.move('down'); expect(manager.focused).toBe('settings:password');
+    manager.move('right'); expect(manager.focused).toBe('settings:xmltv');
+  });
   it('scrolls only the nearest list and leaves clipping layouts fixed', () => {
     const rect = (top: number, bottom: number) => ({ top, bottom, left: 0, right: 100, width: 100, height: bottom - top, x: 0, y: top, toJSON() {} });
     const layout = { parentElement: null, scrollHeight: 300, clientHeight: 100, scrollWidth: 100, clientWidth: 100, scrollTop: 0, scrollLeft: 0, getBoundingClientRect: () => rect(0, 100) };
