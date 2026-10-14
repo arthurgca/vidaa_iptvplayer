@@ -1,5 +1,5 @@
 import type { Language } from '../i18n';
-import type { AppConfig, Category, Channel, EpgNow, Favorite, HistoryItem, MediaKind, Page, SeriesItem, VodItem, Episode } from '../types';
+import type { AppConfig, Category, Channel, EpgNow, Favorite, HistoryItem, MediaKind, Page, SeriesItem, VodItem, Episode, GuidePage } from '../types';
 
 export interface AppStatus { version: string; configured: boolean; demoMode: boolean; language: Language; languageConfigured: boolean }
 
@@ -33,10 +33,13 @@ export const api = {
   series: (categoryId?: string, offset = 0, search = '') => request<Page<SeriesItem>>(`/api/xtream/series?${query({ category_id: categoryId, offset, limit: 60, search })}`),
   seriesInfo: (id: string) => request<{ item: SeriesItem; episodes: Episode[] }>(`/api/xtream/series/${encodeURIComponent(id)}`),
   epg: (channelId: string) => request<EpgNow>(`/api/epg/${encodeURIComponent(channelId)}`),
+  guide: (start: number, offset = 0, categoryId = '', search = '') => request<GuidePage>(`/api/guide?${query({ start, offset, category_id: categoryId, search })}`),
   favorites: () => request<Favorite[]>('/api/favorites'),
   favorite: (value: Omit<Favorite, 'addedAt'>) => request<Favorite>('/api/favorites', { method: 'PUT', body: JSON.stringify(value) }),
   unfavorite: (type: string, id: string) => request<void>(`/api/favorites/${type}/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  moveFavorite: (type: string, id: string, direction: number) => request<Favorite[]>('/api/favorites/move', { method: 'POST', body: JSON.stringify({ type, id, direction }) }),
   history: () => request<HistoryItem[]>('/api/history'),
+  forget: (type: string, id: string) => request<void>(`/api/history/${type}/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   watched: (value: Omit<HistoryItem, 'watchedAt'>) => request<HistoryItem>('/api/history', { method: 'POST', body: JSON.stringify(value) }),
   playUrl: (kind: MediaKind, id: string, extension?: string) => `/api/play/${kind}/${encodeURIComponent(id)}${extension ? `?ext=${encodeURIComponent(extension)}` : ''}`
 };

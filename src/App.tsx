@@ -13,9 +13,11 @@ import { Favorites, Recent } from './screens/Library';
 import { LiveTV } from './screens/LiveTV';
 import { MediaCatalog } from './screens/MediaCatalog';
 import { Settings } from './screens/Settings';
+import { Guide } from './screens/Guide';
+import { resumePosition } from './player/history';
 import type { Channel, Episode, Favorite, HistoryItem, SeriesItem, VodItem } from './types';
 
-type RouteName = 'home'|'live'|'movies'|'movie-details'|'series'|'series-details'|'favorites'|'recent'|'settings'|'player';
+type RouteName = 'home'|'live'|'guide'|'movies'|'movie-details'|'series'|'series-details'|'favorites'|'recent'|'settings'|'player';
 interface Route { name: RouteName; data?: unknown; restoreFocus?: string }
 
 export function App() {
@@ -33,6 +35,8 @@ function AppRouter({ language, setLanguage }: RouterProps) {
   const [liveCategory, setLiveCategory] = useState('');
   const playerAction = useRef<((action: RemoteAction) => boolean) | null>(null);
   const current = routes[routes.length - 1];
+  const currentRoute = useRef(current); currentRoute.current = current;
+  const recentRequest = useRef(0);
 
   const restoreSoon = (key?: string) => window.setTimeout(() => { if (!key || !focus.focus(key)) focus.focusFirst(); }, 50);
   const push = (name: RouteName, data?: unknown) => setRoutes((stack) => [...stack.slice(0,-1), { ...stack[stack.length-1]!, restoreFocus: focus.focused }, { name, data }]);
@@ -60,21 +64,27 @@ function AppRouter({ language, setLanguage }: RouterProps) {
   if (startupError) return <ErrorState error={t('app.backendUnavailable', { error: startupError })} retry={() => location.reload()} />;
   if (!current) return <Spinner label={t('app.starting')} />;
   const playMovie = (item: VodItem, resumeAt = 0) => push('player', { type: 'movie', id: item.id, item, extension: item.extension, resumeAt } satisfies Playable);
-  const playEpisode = (episode: Episode, series?: SeriesItem, resumeAt = 0) => push('player', { type: 'series', id: episode.id, item: episode, extension: episode.extension, series, resumeAt } satisfies Playable);
+  const playEpisode = (episode: Episode, series?: SeriesItem, resumeAt = 0, episodes?: Episode[]) => push('player', { type: 'series', id: episode.id, item: episode, extension: episode.extension, series, resumeAt, episodes } satisfies Playable);
   const openFavorite = (row: Favorite) => {
     if (row.type === 'live') push('player', { type: 'live', id: row.id, item: row.item as Channel, channels: [row.item as Channel] } satisfies Playable);
     else if (row.type === 'movie') push('movie-details', row.item);
     else push('series-details', row.item);
   };
-  const openRecent = (row: HistoryItem) => {
+  const openRecent = async (row: HistoryItem) => {
+    const request = ++recentRequest.current; const origin = current;
     if (row.type === 'live') push('player', { type: 'live', id: row.id, item: row.item as Channel, channels: [row.item as Channel] } satisfies Playable);
-    else if (row.type === 'movie') playMovie(row.item as VodItem, row.position);
-    else playEpisode(row.item as Episode, undefined, row.position);
+    else if (row.type === 'movie') playMovie(row.item as VodItem, resumePosition(row));
+    else {
+      const detail = row.series ? await api.seriesInfo(row.series.id).catch(() => undefined) : undefined;
+      if (request !== recentRequest.current || currentRoute.current !== origin) return;
+      playEpisode(row.item as Episode, detail?.item || row.series, resumePosition(row), detail?.episodes);
+    }
   };
   let screen: preact.ComponentChildren;
   switch (current.name) {
     case 'home': screen = <Home open={(route) => push(route as RouteName)} />; break;
-    case 'live': screen = <LiveTV category={liveCategory} setCategory={setLiveCategory} play={(channel, channels) => push('player', { type: 'live', id: channel.id, item: channel, extension: channel.extension, channels } satisfies Playable)} />; break;
+    case 'live': screen = <LiveTV category={liveCategory} setCategory={setLiveCategory} guide={() => push('guide')} play={(channel, channels) => push('player', { type: 'live', id: channel.id, item: channel, extension: channel.extension, channels } satisfies Playable)} />; break;
+    case 'guide': screen = <Guide category={liveCategory} play={(channel, channels) => push('player', { type: 'live', id: channel.id, item: channel, extension: channel.extension, channels } satisfies Playable)} />; break;
     case 'movies': screen = <MediaCatalog kind="movies" open={(item) => push('movie-details', item)} />; break;
     case 'movie-details': screen = <MovieDetails seed={current.data as VodItem} play={playMovie} />; break;
     case 'series': screen = <MediaCatalog kind="series" open={(item) => push('series-details', item)} />; break;

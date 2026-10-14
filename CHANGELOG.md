@@ -13,9 +13,16 @@ so the tagged commit already carries its notes.
 ### Added
 
 - The player now offers persistent Auto, 16:9, 4:3, Zoom, and Stretch aspect-ratio modes, selectable from the overlay or TV remote.
+- Movie and episode detail screens offer resume and start-over actions. Series show watched episodes and a continuation shortcut.
+- Series playback supports automatic continuation across seasons, a next-episode action, and a persistent per-device autoplay toggle.
+- A remote-controlled playback options panel selects available native or HLS audio languages and subtitles.
+- Live TV now opens a paged, searchable TV guide with three-hour windows, programme descriptions, and provider/XMLTV schedule data.
+- Favorites can be reordered or removed, and individual recently watched entries can be removed.
 
 ### Changed
 
+- Playback recovers from temporary network failures and stalls with three bounded retries, retaining the VOD position. Progress is also saved on pause and completion.
+- Library writes are serialized to keep simultaneous history and favorite updates from colliding on disk.
 - Directional navigation now follows the actual positions of controls before
   consulting list indexes, prevents grid row wrapping, and keeps button focus
   registrations stable across rerenders.

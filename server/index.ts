@@ -3,7 +3,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { clearIptvConfig, initConfig, getConfig, isLanguage, languageConfigured, publicConfig, saveConfig } from './config.js';
 import { demoCategories, demoChannels, demoEpisodes, demoSeries, demoVod } from './demo.js';
-import { clearEpg, epgForChannel, epgStatus, initEpg, refreshEpg } from './epg/service.js';
+import { clearEpg, epgForChannel, epgStatus, initEpg, refreshEpg, scheduleForChannel } from './epg/service.js';
+import { guideStart } from './epg/schedule.js';
 import { initStore, library } from './store.js';
 import type { Category, Channel, Favorite, HistoryItem, SeriesItem, VodItem } from './types.js';
 import { APP_VERSION } from './version.js';
@@ -139,7 +140,24 @@ app.get('/api/epg/:channelId', asyncRoute(async (req, res) => {
   res.json(await epgForChannel(item));
 }));
 
+app.get('/api/guide', asyncRoute(async (req, res) => {
+  const start = guideStart(req.query.start);
+  const end = start + 3 * 3600_000;
+  const search = stringParam(req.query.search).trim().toLowerCase();
+  const channels = (await live(stringParam(req.query.category_id) || undefined)).filter((channel) => !search || channel.name.toLowerCase().includes(search));
+  const rawOffset = Number(req.query.offset);
+  const offset = Number.isFinite(rawOffset) ? Math.max(0, Math.floor(rawOffset)) : 0;
+  const limit = 6;
+  const items = await Promise.all(channels.slice(offset, offset + limit).map(async (channel) => ({ channel, programs: await scheduleForChannel(channel, start, end) })));
+  res.json({ items, total: channels.length, offset, limit, start, end });
+}));
+
 app.get('/api/favorites', (_req, res) => res.json(library.favorites()));
+app.post('/api/favorites/move', asyncRoute(async (req, res) => {
+  const { type, id, direction } = req.body || {};
+  if (!['live', 'movie', 'series'].includes(type) || typeof id !== 'string' || ![-1, 1].includes(direction)) { res.status(400).json({ error: 'Invalid favorite move.' }); return; }
+  res.json(await library.moveFavorite(type, id, direction));
+}));
 app.put('/api/favorites', asyncRoute(async (req, res) => {
   const favorite = req.body as Favorite;
   if (!['live','movie','series'].includes(favorite.type) || !favorite.id || !favorite.item) throw new Error('Invalid favorite.');
@@ -147,10 +165,15 @@ app.put('/api/favorites', asyncRoute(async (req, res) => {
 }));
 app.delete('/api/favorites/:type/:id', asyncRoute(async (req, res) => { await library.unfavorite(stringParam(req.params.type), stringParam(req.params.id)); res.status(204).end(); }));
 app.get('/api/history', (_req, res) => res.json(library.history()));
+app.delete('/api/history/:type/:id', asyncRoute(async (req, res) => {
+  await library.forget(stringParam(req.params.type), stringParam(req.params.id));
+  res.status(204).end();
+}));
 app.post('/api/history', asyncRoute(async (req, res) => {
   const item = req.body as HistoryItem;
   if (!['live','movie','series'].includes(item.type) || !item.id || !item.item) throw new Error('Invalid history item.');
-  res.json(await library.watched({ ...item, position: Math.max(0, Number(item.position) || 0), duration: Math.max(0, Number(item.duration) || 0), watchedAt: Date.now() }));
+  const position = Number(item.position); const duration = Number(item.duration);
+  res.json(await library.watched({ ...item, completed: item.completed === true, position: Number.isFinite(position) ? Math.max(0, position) : 0, duration: Number.isFinite(duration) ? Math.max(0, duration) : 0, watchedAt: Date.now() }));
 }));
 
 app.get('/api/play/:kind/:id', asyncRoute(async (req, res) => {

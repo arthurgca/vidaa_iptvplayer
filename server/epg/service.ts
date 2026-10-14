@@ -6,6 +6,7 @@ import type { Channel, Program } from '../types.js';
 import { xtream } from '../xtream/client.js';
 import { matchEpgChannel } from './matcher.js';
 import { parseXmltv, type ParsedXmltv } from './xmltv.js';
+import { scheduleWindow } from './schedule.js';
 
 interface EpgCache extends ParsedXmltv { refreshedAt: number }
 const cachePath = path.join(dataDir, 'epg-cache.json');
@@ -78,20 +79,29 @@ function decode(value: unknown): string {
   try { return Buffer.from(value, 'base64').toString('utf8'); } catch { return value; }
 }
 
-export async function epgForChannel(channel: Channel) {
+export async function scheduleForChannel(channel: Channel, start = Date.now() - 6 * 3600_000, end = Date.now() + 48 * 3600_000, full = true): Promise<Program[]> {
   if (getConfig().demoMode) {
     const programs = cache.programs.filter((program) => program.channelId === channel.epgChannelId);
-    return programWindow(programs);
+    return scheduleWindow(programs, start, end);
   }
   const matched = matchEpgChannel(channel, cache.channelNames);
-  if (matched) return programWindow(cache.programs.filter((program) => program.channelId === matched));
+  if (matched) {
+    const programs = scheduleWindow(cache.programs.filter((program) => program.channelId === matched), start, end);
+    if (programs.length) return programs;
+  }
   try {
-    const result = await xtream('get_short_epg', { stream_id: channel.id, limit: '4' }) as Record<string, unknown>;
+    let result: Record<string, unknown> | undefined;
+    if (full) result = await xtream('get_simple_data_table', { stream_id: channel.id }).catch(() => undefined) as Record<string, unknown> | undefined;
+    const hasListings = result && (Array.isArray(result) ? result.length > 0 : Array.isArray(result.epg_listings) && result.epg_listings.length > 0);
+    if (!hasListings) result = await xtream('get_short_epg', { stream_id: channel.id, limit: full ? '100' : '4' }) as Record<string, unknown>;
+    if (!result) return [];
     const rows = (Array.isArray(result) ? result : result.epg_listings || []) as Record<string, unknown>[];
     const programs = rows.map((item) => ({ channelId: channel.epgChannelId || channel.id, title: decode(item.title), description: decode(item.description) || undefined,
       start: Number(item.start_timestamp) * 1000 || Date.parse(String(item.start)), end: Number(item.stop_timestamp) * 1000 || Date.parse(String(item.end)) })).filter((item) => item.start && item.end);
-    return programWindow(programs);
-  } catch { return { current: undefined, next: undefined, progress: 0 }; }
+    return scheduleWindow(programs, start, end);
+  } catch { return []; }
 }
+
+export async function epgForChannel(channel: Channel) { return programWindow(await scheduleForChannel(channel, undefined, undefined, false)); }
 
 export function epgStatus() { return { refreshedAt: cache.refreshedAt, programCount: cache.programs.length, channelCount: Object.keys(cache.channelNames).length }; }

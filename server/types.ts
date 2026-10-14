@@ -61,4 +61,4 @@ export interface Program {
 }
 
 export interface Favorite { type: MediaKind; id: string; item: Channel | VodItem | SeriesItem; addedAt: number }
-export interface HistoryItem { type: MediaKind; id: string; item: Channel | VodItem | Episode; position: number; duration: number; watchedAt: number }
+export interface HistoryItem { type: MediaKind; id: string; item: Channel | VodItem | Episode; position: number; duration: number; watchedAt: number; completed?: boolean; series?: SeriesItem }

@@ -11,10 +11,11 @@ import type { Channel, EpgNow } from '../types';
 interface LiveTVProps {
   category: string;
   setCategory: (category: string) => void;
+  guide: () => void;
   play: (channel: Channel, channels: Channel[]) => void;
 }
 
-export function LiveTV({ category, setCategory, play }: LiveTVProps) {
+export function LiveTV({ category, setCategory, play, guide }: LiveTVProps) {
   const t = useTranslate();
   const categories = useAsync(api.liveCategories, []);
   const [search, setSearch] = useState('');
@@ -34,7 +35,7 @@ export function LiveTV({ category, setCategory, play }: LiveTVProps) {
   // Kept independent of `selected` so moving through the list does not re-register the search node.
   const searchReturn = firstChannel ? `live:channel:${firstChannel.id}` : categoryKey;
   return <main className="screen catalog-screen">
-    <header className="section-header"><div><span className="eyebrow">{t('live.eyebrow')}</span><h1>{t('live.title')}</h1></div><SearchField focusKey="live:search" value={search} input={setSearch} placeholder={t('live.search')} neighbors={{ down: [PREVIOUS_FOCUS, searchReturn] }} /></header>
+    <header className="section-header"><div><span className="eyebrow">{t('live.eyebrow')}</span><h1>{t('live.title')}</h1></div><SearchField focusKey="live:search" value={search} input={setSearch} placeholder={t('live.search')} neighbors={{ down: [PREVIOUS_FOCUS, searchReturn], right: 'live:guide' }} /><Focusable focusKey="live:guide" group="live-header" index={1} orientation="horizontal" neighbors={{ left: 'live:search', down: searchReturn }} onSelect={guide} className="secondary-button">{t('guide.title')}</Focusable></header>
     <div className="live-layout">
       <aside className="category-panel"><h2>{t('common.categories')}</h2>{categories.loading ? <Spinner /> : categories.error ? <ErrorState error={categories.error} retry={categories.retry} /> : <div className="category-list">
         <Focusable focusKey="live:cat:all" group="live-cats" index={0} orientation="vertical" neighbors={{ right: selected ? `live:channel:${selected.id}` : undefined, up: 'live:search' }} onSelect={() => { setCategory(''); setSelected(undefined); }} className={!category ? 'active-item' : ''}>{t('live.allChannels')}</Focusable>

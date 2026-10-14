@@ -11,10 +11,16 @@ export async function initStore() {
   try { data = { ...data, ...JSON.parse(await readFile(storePath, 'utf8')) }; } catch { /* first run */ }
 }
 
-async function persist() {
-  const temporary = `${storePath}.tmp`;
-  await writeFile(temporary, JSON.stringify(data), 'utf8');
-  await rename(temporary, storePath);
+let writes = Promise.resolve();
+function persist() {
+  const snapshot = JSON.stringify(data);
+  const write = writes.catch(() => undefined).then(async () => {
+    const temporary = `${storePath}.tmp`;
+    await writeFile(temporary, snapshot, 'utf8');
+    await rename(temporary, storePath);
+  });
+  writes = write;
+  return write;
 }
 
 export const library = {
@@ -26,6 +32,20 @@ export const library = {
   },
   async unfavorite(type: string, id: string) {
     data.favorites = data.favorites.filter((item) => !(item.type === type && item.id === id)); await persist();
+  },
+  async moveFavorite(type: string, id: string, direction: number) {
+    if (direction !== -1 && direction !== 1) throw new Error('Invalid move direction.');
+    const from = data.favorites.findIndex((item) => item.type === type && item.id === id);
+    const to = from + direction;
+    if (from >= 0 && to >= 0 && to < data.favorites.length) {
+      [data.favorites[from], data.favorites[to]] = [data.favorites[to]!, data.favorites[from]!];
+      await persist();
+    }
+    return data.favorites;
+  },
+  async forget(type: string, id: string) {
+    data.history = data.history.filter((item) => !(item.type === type && item.id === id));
+    await persist();
   },
   history: () => data.history.slice(0, 100),
   async watched(value: HistoryItem) {

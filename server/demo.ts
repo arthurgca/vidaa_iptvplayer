@@ -42,8 +42,12 @@ export const demoEpisodes: Record<string, Episode[]> = {
 export function demoPrograms(): Program[] {
   const slot = 30 * 60 * 1000;
   const start = Math.floor(Date.now() / slot) * slot;
-  return demoChannels.flatMap((channel, index) => [
-    { channelId: channel.epgChannelId!, title: ['Morning Briefing', 'City Report', 'Live Championship', 'Matchday', 'Ocean Giants', 'Wild Americas'][index]!, description: 'Demo programme information.', start, end: start + slot },
-    { channelId: channel.epgChannelId!, title: ['World Update', 'Market Watch', 'Sports Desk', 'Classic Goals', 'Living Planet', 'Night Hunters'][index]!, start: start + slot, end: start + slot * 2 }
-  ]);
+  const titles = [
+    ['Morning Briefing', 'City Report', 'Live Championship', 'Matchday', 'Ocean Giants', 'Wild Americas'],
+    ['World Update', 'Market Watch', 'Sports Desk', 'Classic Goals', 'Living Planet', 'Night Hunters']
+  ];
+  return demoChannels.flatMap((channel, index) => Array.from({ length: 108 }, (_, offset) => {
+    const beginning = start + (offset - 12) * slot;
+    return { channelId: channel.epgChannelId!, title: titles[offset % 2]![index]!, description: 'Demo programme information.', start: beginning, end: beginning + slot };
+  }));
 }

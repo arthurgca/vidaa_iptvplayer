@@ -79,19 +79,33 @@ HD/FHD/4K suffixes are ignored for exact-name fallback, but ambiguous/fuzzy matc
 | Remote | Desktop | Action |
 |---|---|---|
 | Up / Down / Left / Right | Arrow keys | Navigate; Left/Right seeks −10/+30 seconds during VOD playback |
-| OK | Enter | Select, play, or toggle player information |
+| OK | Enter | Select or play; during playback show information, then open playback options |
 | Back / Return | Escape or Backspace | Close overlay, player, detail, section, then app |
 | Play / Pause / Stop | Media keys | Playback control |
 | Channel + / − | — | Previous/next live channel |
 | Left (live playback) | Arrow Left | Open the channel browse bar: Up/Down previews now/next without leaving the current channel, OK tunes |
 | Fast-forward / Rewind | Media keys | ±30/−10 seconds for VOD |
 | Up (VOD) / Right (live) | Arrow Up / Arrow Right | Cycle Auto, 16:9, 4:3, Zoom, and Stretch display modes |
+| Down (VOD) | Arrow Down | Open playback options |
+| — | M or Context Menu | Open/close playback options |
 
 The central adapter uses documented VIDAA values: arrows `37–40`, Enter `13`, Backspace `8`, rewind `412`, stop `413`, play `415`, fast-forward `417`, and channel up/down `427/428`. It also accepts key-name fallbacks and known Back variants because firmware runtimes differ. Raw key codes never appear in screens or player code.
 
 Focus is application-managed; browser spatial navigation is not used. Lists, grids, sidebars, cross-column neighbors, and the player browse bar are deterministic. Routes save the focused key, so Back restores the previous item. At Home, Back calls `window.close()`.
 
 In development, append `?debug=1` to show route, focus key, and last remote action. It is not enabled in production.
+
+### Playback and library controls
+
+Movie details offer **Resume** and **Start over** for unfinished movies. Episode rows resume their saved position, show **Watched** for completed episodes, and provide a separate start-over action when unfinished. Series details include a shortcut to continue the most recently watched episode or its successor. Recently Watched restarts completed items from the beginning.
+
+Episodes automatically continue in season/episode order. **Playback options** offers **Next episode** and an autoplay switch saved on that device. While playback information is visible, press OK to open the options panel; Back closes it. The panel also lists audio languages and captions/subtitles exposed by native playback or HLS. Embedded track selection depends on the stream and TV runtime; unavailable tracks are identified in the panel.
+
+Temporary playback failures and stalls trigger up to three automatic recovery attempts. VOD reloads retain the current position. Thirty seconds of uninterrupted playback restores the retry budget; unsupported native formats fail directly. Progress is saved on pause, completion, channel/episode changes, and player exit.
+
+Open **Live TV → TV Guide** for a three-hour schedule grid. Earlier/Later changes the time window, Now returns to the current hour, and channel page controls browse six channels at a time. Search applies within the category selected in Live TV. XMLTV retains roughly six hours of past and 48 hours of future data; providers without XMLTV use their available schedule or short EPG. Selecting any programme tunes that channel live. Programme descriptions appear below the grid.
+
+In **Favorites → Edit favorites**, move entries up/down or remove them. Recently Watched has a Remove action for each entry. Changes persist in the shared server profile.
 
 ## Architecture
 
@@ -171,7 +185,9 @@ Rebuild the image afterwards so the deployed server reports the new version.
 - `GET /api/xtream/vod/categories`, `/api/xtream/vod`, `/api/xtream/vod/:id`
 - `GET /api/xtream/series/categories`, `/api/xtream/series`, `/api/xtream/series/:id`
 - `GET /api/epg/:channelId`, `/api/play/:kind/:id`
-- `GET/PUT/DELETE /api/favorites`, `GET/POST /api/history`
+- `GET /api/guide` (`start`, `offset`, `category_id`, `search`; six channels per page)
+- `GET/PUT /api/favorites`, `DELETE /api/favorites/:type/:id`, `POST /api/favorites/move`
+- `GET/POST /api/history`, `DELETE /api/history/:type/:id`
 
 Request bodies are limited, upstream calls time out, URL schemes are validated, provider actions are allow-listed, and passwords are omitted from logs/API responses. Because there is intentionally no authentication, expose this only to a trusted LAN/VPN—not the public internet.
 
