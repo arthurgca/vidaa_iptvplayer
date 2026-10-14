@@ -2,24 +2,30 @@ import { useEffect, useState } from 'preact/hooks';
 import { api } from '../api/client';
 import { Empty, ErrorState, formatTime, Image, Progress, Spinner } from '../components/common';
 import { SearchField } from '../components/SearchField';
+import { CatalogPagination } from '../components/CatalogPagination';
 import { useAsync } from '../hooks/useAsync';
+import { useCatalogPage, filterCatalog, type CatalogQuery } from '../hooks/useCatalogPage';
+import { useCatalogFocus } from '../hooks/useCatalogFocus';
 import { useTranslate } from '../i18n/I18nContext';
 import { Focusable } from '../navigation/FocusContext';
 import { PREVIOUS_FOCUS } from '../navigation/FocusManager';
 import type { Channel, EpgNow } from '../types';
 
 interface LiveTVProps {
-  category: string;
-  setCategory: (category: string) => void;
+  query: CatalogQuery;
+  setQuery: (query: CatalogQuery) => void;
+  restoreFocus?: string;
   guide: () => void;
   play: (channel: Channel, channels: Channel[]) => void;
 }
 
-export function LiveTV({ category, setCategory, play, guide }: LiveTVProps) {
+export function LiveTV({ query, setQuery, restoreFocus, play, guide }: LiveTVProps) {
   const t = useTranslate();
   const categories = useAsync(api.liveCategories, []);
-  const [search, setSearch] = useState('');
-  const channels = useAsync(() => api.channels(category || undefined, 0, search), [category, search]);
+  const { category, search, offset } = query;
+  const setCategory = (value: string) => setQuery(filterCatalog(query, { category: value }));
+  const setSearch = (value: string) => setQuery(filterCatalog(query, { search: value }));
+  const channels = useCatalogPage(() => api.channels(category || undefined, offset, search), 'live', query);
   const [selected, setSelected] = useState<Channel>(); const [epg, setEpg] = useState<EpgNow>();
   const [favorite, setFavorite] = useState(false);
   useEffect(() => {
@@ -32,21 +38,27 @@ export function LiveTV({ category, setCategory, play, guide }: LiveTVProps) {
   const toggleFavorite = () => { if (!selected) return; const action = favorite ? api.unfavorite('live', selected.id) : api.favorite({ type: 'live', id: selected.id, item: selected }); action.then(() => setFavorite(!favorite)).catch(() => undefined); };
   const categoryKey = category ? `live:cat:${category}` : 'live:cat:all';
   const firstChannel = channels.data?.items[0];
+  const lastChannel = channels.data?.items[channels.data.items.length - 1];
+  const firstChannelKey = firstChannel ? `live:channel:${firstChannel.id}` : undefined;
+  const lastChannelKey = lastChannel ? `live:channel:${lastChannel.id}` : undefined;
+  const contentKey = selected ? `live:channel:${selected.id}` : channels.error ? 'live:retry' : offset ? 'live:page:previous' : undefined;
+  useCatalogFocus('live', channels.loading, firstChannelKey, channels.error ? 'live:retry' : categoryKey, restoreFocus);
   // Kept independent of `selected` so moving through the list does not re-register the search node.
   const searchReturn = firstChannel ? `live:channel:${firstChannel.id}` : categoryKey;
   return <main className="screen catalog-screen">
     <header className="section-header"><div><span className="eyebrow">{t('live.eyebrow')}</span><h1>{t('live.title')}</h1></div><SearchField focusKey="live:search" value={search} input={setSearch} placeholder={t('live.search')} neighbors={{ down: [PREVIOUS_FOCUS, searchReturn], right: 'live:guide' }} /><Focusable focusKey="live:guide" group="live-header" index={1} orientation="horizontal" neighbors={{ left: 'live:search', down: searchReturn }} onSelect={guide} className="secondary-button">{t('guide.title')}</Focusable></header>
     <div className="live-layout">
       <aside className="category-panel"><h2>{t('common.categories')}</h2>{categories.loading ? <Spinner /> : categories.error ? <ErrorState error={categories.error} retry={categories.retry} /> : <div className="category-list">
-        <Focusable focusKey="live:cat:all" group="live-cats" index={0} orientation="vertical" neighbors={{ right: selected ? `live:channel:${selected.id}` : undefined, up: 'live:search' }} onSelect={() => { setCategory(''); setSelected(undefined); }} className={!category ? 'active-item' : ''}>{t('live.allChannels')}</Focusable>
-        {categories.data?.map((item, index) => <Focusable key={item.id} focusKey={`live:cat:${item.id}`} group="live-cats" index={index + 1} orientation="vertical" neighbors={{ right: selected ? `live:channel:${selected.id}` : undefined }} onSelect={() => { setCategory(item.id); setSelected(undefined); }} className={category === item.id ? 'active-item' : ''}>{item.name}</Focusable>)}
+        <Focusable focusKey="live:cat:all" group="live-cats" index={0} orientation="vertical" neighbors={{ right: contentKey, up: 'live:search' }} onSelect={() => { setCategory(''); setSelected(undefined); }} className={!category ? 'active-item' : ''}>{t('live.allChannels')}</Focusable>
+        {categories.data?.map((item, index) => <Focusable key={item.id} focusKey={`live:cat:${item.id}`} group="live-cats" index={index + 1} orientation="vertical" neighbors={{ right: contentKey }} onSelect={() => { setCategory(item.id); setSelected(undefined); }} className={category === item.id ? 'active-item' : ''}>{item.name}</Focusable>)}
       </div>}</aside>
       <section className="channel-panel"><div className="list-heading"><h2>{t('live.channelCount', { count: channels.data?.total || 0 })}</h2><span>{t('live.okToWatch')}</span></div>
-        {channels.loading ? <Spinner label={t('live.loading')} /> : channels.error ? <ErrorState error={channels.error} retry={channels.retry} /> : !channels.data?.items.length ? <Empty>{t('live.empty')}</Empty> : <div className="channel-list">
-          {channels.data.items.map((channel, index) => <Focusable key={channel.id} focusKey={`live:channel:${channel.id}`} group="live-channels" index={index} orientation="vertical" neighbors={{ left: categoryKey, right: 'live:favorite', up: index === 0 ? 'live:search' : undefined }} onFocus={() => setSelected(channel)} onSelect={() => play(channel, channels.data!.items)} className={`channel-row ${selected?.id === channel.id ? 'selected-row' : ''}`}>
-            <span className="channel-number">{channel.number || index + 1}</span><Image src={channel.logo} alt={channel.name} className="channel-logo" /><span className="channel-copy"><strong>{channel.name}</strong><small>{selected?.id === channel.id ? epg?.current?.title || t('common.noProgramme') : t('live.pressOk')}</small></span><span className="play-glyph">▶</span>
+        {channels.loading ? <Spinner label={t('live.loading')} /> : channels.error ? <div className="state-panel error"><p>{channels.error}</p><Focusable focusKey="live:retry" group="live-status" index={0} neighbors={{ left: categoryKey, up: 'live:search', down: offset ? 'live:page:previous' : undefined }} onSelect={channels.retry} className="secondary-button">{t('common.retry')}</Focusable></div> : !channels.data?.items.length ? <Empty>{t('live.empty')}</Empty> : <div className="channel-list">
+          {channels.data.items.map((channel, index) => <Focusable key={channel.id} focusKey={`live:channel:${channel.id}`} group="live-channels" index={index} orientation="vertical" neighbors={{ left: categoryKey, right: 'live:favorite', up: index === 0 ? 'live:search' : undefined, down: index === channels.data!.items.length - 1 ? ['live:page:next', 'live:page:previous'] : undefined }} onFocus={() => setSelected(channel)} onSelect={() => play(channel, channels.data!.items)} className={`channel-row ${selected?.id === channel.id ? 'selected-row' : ''}`}>
+            <span className="channel-number">{channel.number || offset + index + 1}</span><Image src={channel.logo} alt={channel.name} className="channel-logo" /><span className="channel-copy"><strong>{channel.name}</strong><small>{selected?.id === channel.id ? epg?.current?.title || t('common.noProgramme') : t('live.pressOk')}</small></span><span className="play-glyph">▶</span>
           </Focusable>)}
         </div>}
+        <CatalogPagination kind="live" page={channels.data} offset={offset} pageSize={100} loading={channels.loading} change={(value) => setQuery({ ...query, offset: value })} firstItem={firstChannelKey} lastItem={lastChannelKey} fallback={categoryKey} />
       </section>
       <aside className="epg-panel">{selected ? <>
         <Image src={selected.logo} alt={selected.name} className="epg-logo" /><span className="eyebrow">{t('live.nowOn')}</span><h2>{selected.name}</h2>

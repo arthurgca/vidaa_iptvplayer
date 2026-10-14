@@ -12,6 +12,7 @@ so the tagged commit already carries its notes.
 
 ### Added
 
+- Live TV, movies, and series have remote-accessible Previous/Next catalog pages with result ranges. Filters reset pagination, and returning from playback or details restores the catalog page and focused item.
 - The player now offers persistent Auto, 16:9, 4:3, Zoom, and Stretch aspect-ratio modes, selectable from the overlay or TV remote.
 - Movie and episode detail screens offer resume and start-over actions. Series show watched episodes and a continuation shortcut.
 - Series playback supports automatic continuation across seasons, a next-episode action, and a persistent per-device autoplay toggle.

@@ -58,6 +58,8 @@ Set the provider origin only—do not include `player_api.php` or credentials in
 
 Providers vary, so normalization accepts common ID, image, episode, and metadata variations. Category-filtered requests, server pagination, and bounded UI pages prevent large catalogs from producing thousands of TV DOM nodes.
 
+Live TV, Movies, and Series show **Previous / Next** controls below the results, with the displayed range and total. Press Down from the last channel or poster row to reach them. Pages contain up to 100 live channels or 60 movies/series; changing category or search starts at page one. Back from details or playback returns to the same filters, page, and focused item.
+
 ### XMLTV setup
 
 Set `XMLTV_URL` to the normal Xtream endpoint:

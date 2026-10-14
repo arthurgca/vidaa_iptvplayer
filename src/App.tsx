@@ -15,6 +15,7 @@ import { MediaCatalog } from './screens/MediaCatalog';
 import { Settings } from './screens/Settings';
 import { Guide } from './screens/Guide';
 import { resumePosition } from './player/history';
+import { emptyCatalogQuery, type CatalogQuery } from './hooks/useCatalogPage';
 import type { Channel, Episode, Favorite, HistoryItem, SeriesItem, VodItem } from './types';
 
 type RouteName = 'home'|'live'|'guide'|'movies'|'movie-details'|'series'|'series-details'|'favorites'|'recent'|'settings'|'player';
@@ -32,7 +33,8 @@ interface RouterProps { language: Language; setLanguage: (language: Language) =>
 function AppRouter({ language, setLanguage }: RouterProps) {
   const focus = useFocusManager(); const focusedKey = useFocusedKey(); const t = useTranslate();
   const [routes, setRoutes] = useState<Route[]>([]); const [startupError, setStartupError] = useState(''); const [lastKey, setLastKey] = useState('');
-  const [liveCategory, setLiveCategory] = useState('');
+  const [catalogs, setCatalogs] = useState(() => ({ live: emptyCatalogQuery(), movies: emptyCatalogQuery(), series: emptyCatalogQuery() }));
+  const setCatalog = (kind: keyof typeof catalogs, query: CatalogQuery) => setCatalogs((value) => ({ ...value, [kind]: query }));
   const playerAction = useRef<((action: RemoteAction) => boolean) | null>(null);
   const current = routes[routes.length - 1];
   const currentRoute = useRef(current); currentRoute.current = current;
@@ -83,15 +85,15 @@ function AppRouter({ language, setLanguage }: RouterProps) {
   let screen: preact.ComponentChildren;
   switch (current.name) {
     case 'home': screen = <Home open={(route) => push(route as RouteName)} />; break;
-    case 'live': screen = <LiveTV category={liveCategory} setCategory={setLiveCategory} guide={() => push('guide')} play={(channel, channels) => push('player', { type: 'live', id: channel.id, item: channel, extension: channel.extension, channels } satisfies Playable)} />; break;
-    case 'guide': screen = <Guide category={liveCategory} play={(channel, channels) => push('player', { type: 'live', id: channel.id, item: channel, extension: channel.extension, channels } satisfies Playable)} />; break;
-    case 'movies': screen = <MediaCatalog kind="movies" open={(item) => push('movie-details', item)} />; break;
+    case 'live': screen = <LiveTV query={catalogs.live} setQuery={(query) => setCatalog('live', query)} restoreFocus={current.restoreFocus} guide={() => push('guide')} play={(channel, channels) => push('player', { type: 'live', id: channel.id, item: channel, extension: channel.extension, channels } satisfies Playable)} />; break;
+    case 'guide': screen = <Guide category={catalogs.live.category} play={(channel, channels) => push('player', { type: 'live', id: channel.id, item: channel, extension: channel.extension, channels } satisfies Playable)} />; break;
+    case 'movies': screen = <MediaCatalog kind="movies" query={catalogs.movies} setQuery={(query) => setCatalog('movies', query)} restoreFocus={current.restoreFocus} open={(item) => push('movie-details', item)} />; break;
     case 'movie-details': screen = <MovieDetails seed={current.data as VodItem} play={playMovie} />; break;
-    case 'series': screen = <MediaCatalog kind="series" open={(item) => push('series-details', item)} />; break;
+    case 'series': screen = <MediaCatalog kind="series" query={catalogs.series} setQuery={(query) => setCatalog('series', query)} restoreFocus={current.restoreFocus} open={(item) => push('series-details', item)} />; break;
     case 'series-details': screen = <SeriesDetails seed={current.data as SeriesItem} play={playEpisode} />; break;
     case 'favorites': screen = <Favorites open={openFavorite} />; break;
     case 'recent': screen = <Recent open={openRecent} />; break;
-    case 'settings': screen = <Settings firstRun={Boolean((current.data as { firstRun?: boolean })?.firstRun)} language={language} setLanguage={setLanguage} saved={(current.data as { firstRun?: boolean })?.firstRun ? replaceHome : back} cleared={() => setLiveCategory('')} />; break;
+    case 'settings': screen = <Settings firstRun={Boolean((current.data as { firstRun?: boolean })?.firstRun)} language={language} setLanguage={setLanguage} saved={(current.data as { firstRun?: boolean })?.firstRun ? replaceHome : back} cleared={() => setCatalogs({ live: emptyCatalogQuery(), movies: emptyCatalogQuery(), series: emptyCatalogQuery() })} />; break;
     case 'player': screen = <Player media={current.data as Playable} registerAction={(handler) => { playerAction.current = handler; }} close={back} />; break;
   }
   const debug = import.meta.env.DEV && new URLSearchParams(location.search).get('debug') === '1';

@@ -53,6 +53,10 @@ export const pt: Dictionary = {
   'live.selectChannel': 'Selecione um canal.',
 
   'catalog.eyebrow': 'SOB DEMANDA',
+  'catalog.pagination': 'Páginas do catálogo',
+  'catalog.previousPage': '‹ Anterior',
+  'catalog.nextPage': 'Próxima ›',
+  'catalog.range': '{first}–{last} de {total}',
   'catalog.movies.title': 'Filmes',
   'catalog.movies.search': 'Buscar filmes',
   'catalog.movies.all': 'Todos os filmes',

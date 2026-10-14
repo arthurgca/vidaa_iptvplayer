@@ -55,6 +55,10 @@ export const en = {
   'live.selectChannel': 'Select a channel.',
 
   'catalog.eyebrow': 'ON DEMAND',
+  'catalog.pagination': 'Catalog pages',
+  'catalog.previousPage': '‹ Previous',
+  'catalog.nextPage': 'Next ›',
+  'catalog.range': '{first}–{last} of {total}',
   'catalog.movies.title': 'Movies',
   'catalog.movies.search': 'Search movies',
   'catalog.movies.all': 'All movies',

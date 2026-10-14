@@ -149,6 +149,10 @@ div.image-fallback { display: grid; place-items: center; background: var(--surfa
 
 /* ---- Movies and series catalog ------------------------------------------- */
 .poster-grid { display: grid; grid-template-columns: repeat(5, 1fr); align-content: start; gap: 1.1rem }
+.catalog-pagination { flex: none; display: flex; align-items: center; justify-content: space-between; gap: .6rem; padding: .6rem .4rem 0; border-top: var(--hairline) solid var(--line) }
+.catalog-pagination span { color: var(--text-dim); font-size: .85rem; font-variant-numeric: tabular-nums; text-align: center }
+.catalog-pagination .focusable { padding: .6rem .8rem; white-space: nowrap }
+.catalog-pagination button:disabled { opacity: .4; cursor: default }
 .poster-card { display: block; min-width: 0; align-self: start; padding: .5rem; background: var(--surface-2); border-radius: var(--radius) }
 .poster { display: block; width: 100%; aspect-ratio: 2 / 3; object-fit: cover; background: var(--bg); border-radius: var(--radius-sm); margin-bottom: .55rem }
 div.poster { min-height: 8rem }
