@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clampSeekTime, formatPlaybackTime, parseMediaDuration } from '../src/player/Player';
+import { clampSeekTime, formatPlaybackTime, isAspectMode, nextAspectMode, parseMediaDuration } from '../src/player/Player';
 
 describe('player timeline helpers', () => {
   it('formats short and long playback positions', () => {
@@ -21,5 +21,19 @@ describe('player timeline helpers', () => {
     expect(parseMediaDuration('52m')).toBe(3120);
     expect(parseMediaDuration('6480')).toBe(6480);
     expect(parseMediaDuration(undefined)).toBe(0);
+  });
+});
+
+describe('player aspect ratio helpers', () => {
+  it('cycles through every display mode in both directions', () => {
+    expect(nextAspectMode('auto')).toBe('16:9');
+    expect(nextAspectMode('stretch')).toBe('auto');
+    expect(nextAspectMode('auto', -1)).toBe('stretch');
+  });
+
+  it('rejects stale or invalid saved display modes', () => {
+    expect(isAspectMode('4:3')).toBe(true);
+    expect(isAspectMode('fullscreen')).toBe(false);
+    expect(isAspectMode(null)).toBe(false);
   });
 });

@@ -17,6 +17,30 @@ interface TechnicalInfo {
   bitrate?: number; videoCodec?: string; audioCodec?: string;
 }
 
+export const ASPECT_MODES = ['auto', '16:9', '4:3', 'zoom', 'stretch'] as const;
+export type AspectMode = typeof ASPECT_MODES[number];
+const ASPECT_STORAGE_KEY = 'vidaa-player-aspect-ratio';
+
+export function isAspectMode(value: string | null): value is AspectMode {
+  return ASPECT_MODES.some((mode) => mode === value);
+}
+
+export function nextAspectMode(current: AspectMode, direction = 1): AspectMode {
+  const index = ASPECT_MODES.indexOf(current);
+  return ASPECT_MODES[(index + direction + ASPECT_MODES.length) % ASPECT_MODES.length]!;
+}
+
+function savedAspectMode(): AspectMode {
+  try {
+    const value = window.localStorage.getItem(ASPECT_STORAGE_KEY);
+    return isAspectMode(value) ? value : 'auto';
+  } catch { return 'auto'; }
+}
+
+function saveAspectMode(mode: AspectMode) {
+  try { window.localStorage.setItem(ASPECT_STORAGE_KEY, mode); } catch { /* storage may be disabled on the TV */ }
+}
+
 function streamFormat(extension: string | undefined, isHls: boolean, fallback: string) {
   if (isHls) return 'HLS';
   const value = extension?.replace(/^\./, '').toLowerCase();
@@ -88,6 +112,7 @@ export function Player({ media, registerAction, close }: { media: Playable; regi
   const [active, setActive] = useState(media); const [epg, setEpg] = useState<EpgNow>(); const [state, setState] = useState<'loading'|'playing'|'paused'|'error'>('loading');
   const [technical, setTechnical] = useState<TechnicalInfo>({ format: t('player.tech.stream') });
   const [position, setPosition] = useState(0); const [duration, setDuration] = useState(0); const [buffered, setBuffered] = useState(0);
+  const [aspectMode, setAspectMode] = useState<AspectMode>(savedAspectMode);
   const channels = active.channels || [];
   const metadataDuration = 'duration' in active.item ? parseMediaDuration(active.item.duration) : 0;
   const playableDuration = (element: HTMLVideoElement) => {
@@ -132,6 +157,8 @@ export function Player({ media, registerAction, close }: { media: Playable; regi
     const target = clampSeekTime(nextPosition, nextDuration);
     element.currentTime = target; setPosition(target); show();
   };
+  const selectAspectMode = (mode: AspectMode) => { setAspectMode(mode); saveAspectMode(mode); show(); };
+  const cycleAspectMode = (direction = 1) => { setAspectMode((current) => { const next = nextAspectMode(current, direction); saveAspectMode(next); return next; }); show(); };
   const applyResume = () => {
     const element = video.current; if (!element || resumeApplied.current || active.type === 'live') return;
     const nextDuration = playableDuration(element);
@@ -168,6 +195,7 @@ export function Player({ media, registerAction, close }: { media: Playable; regi
       if (browsing && action === 'NAV_DOWN') { setBrowseIndex((value) => Math.min(channels.length - 1, value + 1)); return true; }
       if (!browsing && (action === 'NAV_UP' || action === 'CHANNEL_UP') && channels.length) { switchChannel(channels.findIndex((c) => c.id === active.id) - 1); return true; }
       if (!browsing && (action === 'NAV_DOWN' || action === 'CHANNEL_DOWN') && channels.length) { switchChannel(channels.findIndex((c) => c.id === active.id) + 1); return true; }
+      if (!browsing && ((action === 'NAV_UP' && active.type !== 'live') || (action === 'NAV_RIGHT' && active.type === 'live'))) { cycleAspectMode(); return true; }
       if (action === 'NAV_LEFT' && active.type !== 'live') { seekTo((element?.currentTime || 0) - 10); return true; }
       if (action === 'NAV_RIGHT' && active.type !== 'live') { seekTo((element?.currentTime || 0) + 30); return true; }
       if ((action === 'PLAY' || action === 'PAUSE') && element) { action === 'PLAY' ? void element.play() : element.pause(); show(); return true; }
@@ -193,7 +221,8 @@ export function Player({ media, registerAction, close }: { media: Playable; regi
   const browseRows = useMemo(() => channels.slice(browseRange.start, browseRange.end).map((channel, offset) => ({ channel, index: browseRange.start + offset, epg: peekEpg(channel.id) })), [channels, browseRange.start, browseRange.end, epgRevision]);
   const quality = technical.width && technical.height ? `${technical.width} × ${technical.height}${technical.frameRate ? ` · ${Math.round(technical.frameRate)} FPS` : ''}` : technical.frameRate ? `${Math.round(technical.frameRate)} FPS` : undefined;
   const technicalRows = [[t('player.tech.format'), technical.format], [t('player.tech.quality'), quality], [t('player.tech.video'), codecName(technical.videoCodec)], [t('player.tech.audio'), codecName(technical.audioCodec)], [t('player.tech.bitrate'), bitrateLabel(technical.bitrate)]].filter((row): row is string[] => Boolean(row[1]));
-  return <main className="player-screen"><video ref={video} autoplay playsInline onLoadedMetadata={() => { updateDimensions(); applyResume(); }} onDurationChange={() => { syncPlayback(); applyResume(); }} onTimeUpdate={syncPlayback} onProgress={syncPlayback} onSeeking={syncPlayback} onResize={updateDimensions} onPlaying={() => { setState('playing'); updateDimensions(); show(); }} onPause={() => setState('paused')} onError={() => setState('error')} />
+  const aspectLabels: Record<AspectMode, string> = { auto: t('player.aspect.auto'), '16:9': '16:9', '4:3': '4:3', zoom: t('player.aspect.zoom'), stretch: t('player.aspect.stretch') };
+  return <main className="player-screen"><video ref={video} className={`video-aspect-${aspectMode.replace(':', '-')}`} autoplay playsInline onLoadedMetadata={() => { updateDimensions(); applyResume(); }} onDurationChange={() => { syncPlayback(); applyResume(); }} onTimeUpdate={syncPlayback} onProgress={syncPlayback} onSeeking={syncPlayback} onResize={updateDimensions} onPlaying={() => { setState('playing'); updateDimensions(); show(); }} onPause={() => setState('paused')} onError={() => setState('error')} />
     {state === 'loading' && <div className="player-status"><span className="spinner" />{t('player.loading')}</div>}
     {state === 'error' && <div className="player-error"><h2>{t('player.error.title')}</h2><p>{t('player.error.body')}</p><div><button onClick={() => void start()}>{t('common.retry')}</button><button onClick={close}>{t('common.back')}</button></div><small>{t('player.error.hint')}</small></div>}
     {browsing && <aside className="browse-bar" aria-label={t('player.browse.label')}><div className="browse-heading"><h2>{t('player.browse.title')}</h2><span>{browseIndex + 1} / {channels.length}</span></div>
@@ -217,7 +246,8 @@ export function Player({ media, registerAction, close }: { media: Playable; regi
         <div className="timeline-control" role="slider" aria-label={t('player.timeline.label')} aria-valuemin={0} aria-valuemax={Math.round(duration)} aria-valuenow={Math.round(position)} aria-valuetext={t('player.timeline.valueText', { position: formatPlaybackTime(position), duration: duration ? formatPlaybackTime(duration) : t('player.timeline.unknown') })}><div className="timeline-track" aria-hidden="true"><div className="timeline-buffered" style={{ width: `${bufferedPercent}%` }} /><div className="timeline-played" style={{ width: `${playedPercent}%` }} /><div className="timeline-thumb" style={{ left: `${playedPercent}%` }} /></div></div>
       </div>}
       <div className="playback-tech" aria-label={t('player.tech.label')}>{technicalRows.map(([label, value]) => <span key={label}><small>{label}</small><strong>{value}</strong></span>)}</div>
-      <div className="overlay-hints">{active.type === 'live' ? <><span>{t('player.hint.changeChannel')}</span><span>{t('player.hint.browse')}</span></> : <><span>{t('player.hint.rewind')}</span><span>{t('player.hint.forward')}</span></>}<span>{t('player.hint.hideInfo')}</span><span>{t('player.hint.exit')}</span></div>
+      <div className="aspect-options" role="radiogroup" aria-label={t('player.aspect.label')}><small>{t('player.aspect.label')}</small>{ASPECT_MODES.map((mode) => <button key={mode} type="button" role="radio" aria-checked={aspectMode === mode} className={aspectMode === mode ? 'active' : ''} onClick={() => selectAspectMode(mode)}>{aspectLabels[mode]}</button>)}</div>
+      <div className="overlay-hints">{active.type === 'live' ? <><span>{t('player.hint.changeChannel')}</span><span>{t('player.hint.browse')}</span><span>{t('player.hint.aspectLive')}</span></> : <><span>{t('player.hint.rewind')}</span><span>{t('player.hint.forward')}</span><span>{t('player.hint.aspectVod')}</span></>}<span>{t('player.hint.hideInfo')}</span><span>{t('player.hint.exit')}</span></div>
     </section>}
   </main>;
 }

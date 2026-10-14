@@ -85,6 +85,7 @@ HD/FHD/4K suffixes are ignored for exact-name fallback, but ambiguous/fuzzy matc
 | Channel + / − | — | Previous/next live channel |
 | Left (live playback) | Arrow Left | Open the channel browse bar: Up/Down previews now/next without leaving the current channel, OK tunes |
 | Fast-forward / Rewind | Media keys | ±30/−10 seconds for VOD |
+| Up (VOD) / Right (live) | Arrow Up / Arrow Right | Cycle Auto, 16:9, 4:3, Zoom, and Stretch display modes |
 
 The central adapter uses documented VIDAA values: arrows `37–40`, Enter `13`, Backspace `8`, rewind `412`, stop `413`, play `415`, fast-forward `417`, and channel up/down `427/428`. It also accepts key-name fallbacks and known Back variants because firmware runtimes differ. Raw key codes never appear in screens or player code.
 

@@ -230,6 +230,11 @@ div.poster { min-height: 8rem }
 /* ---- Player -------------------------------------------------------------- */
 .player-screen { position: relative; width: 100%; height: 100%; background: #000; overflow: hidden }
 .player-screen video { display: block; width: 100%; height: 100%; object-fit: contain; background: #000 }
+.player-screen video.video-aspect-16-9, .player-screen video.video-aspect-4-3 { position: absolute; inset: 0; margin: auto; object-fit: fill }
+.player-screen video.video-aspect-16-9 { width: 100%; height: 56.25vw; max-height: 100% }
+.player-screen video.video-aspect-4-3 { width: 75vh; max-width: 100%; height: 100% }
+.player-screen video.video-aspect-zoom { object-fit: cover }
+.player-screen video.video-aspect-stretch { object-fit: fill }
 .player-status, .player-error { position: absolute; inset: 0; z-index: 4; display: flex; align-items: center; justify-content: center; gap: 1rem; padding: var(--safe-y) var(--safe-x); background: #05070a; color: #fff; font-size: 1.05rem }
 .player-error { flex-direction: column; text-align: center }
 .player-error h2 { font-size: 2rem }
@@ -253,6 +258,11 @@ div.poster { min-height: 8rem }
 .playback-tech small { color: var(--text-faint); font-size: .75rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase }
 .playback-tech strong { color: #dce7ee; font-size: .85rem; white-space: nowrap }
 .playback-tech + .overlay-hints { margin-top: 1rem }
+.aspect-options { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem; margin-top: .8rem }
+.aspect-options > small { margin-right: .2rem; color: var(--text-faint); font-size: .75rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase }
+.aspect-options button { padding: .35rem .65rem; border: var(--hairline) solid var(--line-strong); border-radius: var(--radius-sm); color: var(--text-dim); background: rgba(18, 29, 39, .82); font-size: .78rem; font-weight: 800; cursor: pointer }
+.aspect-options button.active { border-color: var(--focus); color: #fff; background: var(--accent) }
+.aspect-options + .overlay-hints { margin-top: .8rem }
 .playback-timeline { width: 66%; max-width: 52rem; margin-top: 1.2rem }
 .timeline-times { display: flex; justify-content: space-between; margin-bottom: .35rem; color: var(--text); font-size: .9rem; font-variant-numeric: tabular-nums }
 .timeline-control { position: relative; height: 1.6rem; display: flex; align-items: center }

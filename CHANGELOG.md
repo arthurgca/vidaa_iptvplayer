@@ -10,6 +10,10 @@ so the tagged commit already carries its notes.
 
 ## [Unreleased]
 
+### Added
+
+- The player now offers persistent Auto, 16:9, 4:3, Zoom, and Stretch aspect-ratio modes, selectable from the overlay or TV remote.
+
 ### Changed
 
 - Directional navigation now follows the actual positions of controls before
