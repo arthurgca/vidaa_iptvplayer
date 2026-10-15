@@ -10,6 +10,15 @@ const history: HistoryItem[] = [
 ];
 
 describe('live playback selection', () => {
+  it.each([[19, 0], [20, 20], [99, 80], [100, 100], [199, 180], [204, 200]])('restores channel %s inside the 20-channel page at offset %s', (id, offset) => {
+    const row: HistoryItem = { type: 'live', id: String(id), item: channels[id]!, position: 0, duration: 0, watchedAt: 1 };
+    const selection = liveSelection(channels, [row], true);
+    expect(selection.offset).toBe(offset);
+    expect(selection.channel).toEqual(channels[id]);
+    expect(selection.channels).toEqual(channels.slice(offset, offset + 20));
+    expect(selection.channels.length).toBeLessThanOrEqual(20);
+  });
+
   it('restores the most recent live channel and its page using current catalog metadata', () => {
     const selection = liveSelection(channels, history, true);
     expect(selection.channel).toEqual(channels[204]);

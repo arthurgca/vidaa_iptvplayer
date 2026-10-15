@@ -24,7 +24,7 @@ const PAGE_GROUPS: Partial<Record<RouteName, string[]>> = {
   favorites: ['favorites', 'favorites-items'], recent: ['recent', 'recent-remove'],
   'series-details': ['episodes', 'episode-restarts', 'seasons'], settings: ['settings-controls']
 };
-const PAGINATED_ROUTES: RouteName[] = ['live', 'movies', 'series', 'guide'];
+const PAGINATED_ROUTES: RouteName[] = ['movies', 'series', 'guide'];
 
 export function App() {
   // The TV's own language carries the UI until the backend answers with a preference someone actually chose.
@@ -82,7 +82,8 @@ function AppRouter({ language, setLanguage }: RouterProps) {
     if (current?.name === 'player' && playerAction.current) { if (playerAction.current(action)) return; }
     if (action === 'CHANNEL_UP' || action === 'CHANNEL_DOWN') {
       const direction = action === 'CHANNEL_UP' ? -1 : 1;
-      if (current && PAGINATED_ROUTES.includes(current.name)) {
+      if (current?.name === 'live') focus.jump('live-channels', direction * 5);
+      else if (current && PAGINATED_ROUTES.includes(current.name)) {
         const key = current.name === 'guide' ? `guide:channels-${direction < 0 ? 'previous' : 'next'}`
           : `${current.name}:page:${direction < 0 ? 'previous' : 'next'}`;
         // Disabled and loading pagination controls are unregistered, so bounds stay identical to OK.
@@ -145,5 +146,5 @@ function AppRouter({ language, setLanguage }: RouterProps) {
   // The hint is fixed to the bottom of the safe area, so the screen underneath reserves a band for it.
   const backHint = current.name !== 'home' && current.name !== 'player';
   const pageHint = PAGINATED_ROUTES.includes(current.name) || Boolean(PAGE_GROUPS[current.name]);
-  return <div className={`app-shell${backHint ? ' with-hint' : ''}`}>{screen}{backHint && <div className="back-hint">{t('app.back')}{pageHint && <> · {t('app.pageNavigation')}</>}</div>}{debug &&<div className="debug-overlay">route: {current.name}<br/>focus: {focusedKey || 'none'}<br/>key: {lastKey || 'none'}<br/>viewport: {window.innerWidth}x{window.innerHeight} dpr:{window.devicePixelRatio || 1}</div>}</div>;
+  return <div className={`app-shell${backHint ? ' with-hint' : ''}`}>{screen}{backHint && <div className="back-hint">{t('app.back')}{current.name === 'live' ? <> · {t('app.channelNavigation')}</> : pageHint && <> · {t('app.pageNavigation')}</>}</div>}{debug &&<div className="debug-overlay">route: {current.name}<br/>focus: {focusedKey || 'none'}<br/>key: {lastKey || 'none'}<br/>viewport: {window.innerWidth}x{window.innerHeight} dpr:{window.devicePixelRatio || 1}</div>}</div>;
 }

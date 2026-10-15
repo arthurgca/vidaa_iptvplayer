@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
-import { api } from '../api/client';
+import { api, LIVE_PAGE_SIZE } from '../api/client';
 import { Empty, ErrorState, formatTime, Image, Progress, Spinner } from '../components/common';
 import { SearchField } from '../components/SearchField';
 import { CatalogPagination } from '../components/CatalogPagination';
@@ -58,7 +58,7 @@ export function LiveTV({ query, setQuery, restoreFocus, play, guide }: LiveTVPro
             <span className="channel-number">{channel.number || offset + index + 1}</span><Image src={channel.logo} alt={channel.name} className="channel-logo" /><span className="channel-copy"><strong>{channel.name}</strong><small>{selected?.id === channel.id ? epg?.current?.title || t('common.noProgramme') : t('live.pressOk')}</small></span><span className="play-glyph">▶</span>
           </Focusable>)}
         </div>}
-        <CatalogPagination kind="live" page={channels.data} offset={offset} pageSize={100} loading={channels.loading} change={(value) => setQuery({ ...query, offset: value })} firstItem={firstChannelKey} lastItem={lastChannelKey} fallback={categoryKey} />
+        <CatalogPagination kind="live" page={channels.data} offset={offset} pageSize={LIVE_PAGE_SIZE} loading={channels.loading} change={(value) => setQuery({ ...query, offset: value })} firstItem={firstChannelKey} lastItem={lastChannelKey} fallback={categoryKey} />
       </section>
       <aside className="epg-panel">{selected ? <>
         <Image src={selected.logo} alt={selected.name} className="epg-logo" /><span className="eyebrow">{t('live.nowOn')}</span><h2>{selected.name}</h2>

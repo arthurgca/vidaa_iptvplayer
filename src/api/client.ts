@@ -3,6 +3,7 @@ import type { AppConfig, Category, Channel, EpgNow, Favorite, HistoryItem, Media
 
 export interface AppStatus { version: string; configured: boolean; demoMode: boolean; language: Language; languageConfigured: boolean; autoplayLive: boolean }
 export interface LiveSelection { channel?: Channel; offset: number; channels: Channel[] }
+export const LIVE_PAGE_SIZE = 20;
 
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, { ...options, headers: { 'content-type': 'application/json', ...options?.headers } });
@@ -27,7 +28,7 @@ export const api = {
   clearAllData: () => request<AppConfig>('/api/data/all', { method: 'DELETE' }),
   liveCategories: () => request<Category[]>('/api/xtream/categories/live'),
   liveSelection: () => request<LiveSelection>('/api/live/selection'),
-  channels: (categoryId?: string, offset = 0, search = '') => request<Page<Channel>>(`/api/xtream/streams/live?${query({ category_id: categoryId, offset, limit: 100, search })}`),
+  channels: (categoryId?: string, offset = 0, search = '') => request<Page<Channel>>(`/api/xtream/streams/live?${query({ category_id: categoryId, offset, limit: LIVE_PAGE_SIZE, search })}`),
   vodCategories: () => request<Category[]>('/api/xtream/vod/categories'),
   vod: (categoryId?: string, offset = 0, search = '') => request<Page<VodItem>>(`/api/xtream/vod?${query({ category_id: categoryId, offset, limit: 60, search })}`),
   vodInfo: (id: string) => request<VodItem>(`/api/xtream/vod/${encodeURIComponent(id)}`),

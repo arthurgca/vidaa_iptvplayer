@@ -6,6 +6,7 @@ export const pt: Dictionary = {
   'app.backendUnavailable': 'Servidor indisponível: {error}',
   'app.back': '‹ Voltar',
   'app.pageNavigation': 'P UP / P DOWN: página anterior / seguinte',
+  'app.channelNavigation': 'P UP / P DOWN: pular 5 canais',
 
   'common.loading': 'Carregando…',
   'common.retry': 'Tentar novamente',

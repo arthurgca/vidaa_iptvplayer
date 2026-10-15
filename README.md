@@ -58,7 +58,7 @@ Set the provider origin only—do not include `player_api.php` or credentials in
 
 Providers vary, so normalization accepts common ID, image, episode, and metadata variations. Category-filtered requests, server pagination, and bounded UI pages prevent large catalogs from producing thousands of TV DOM nodes.
 
-Live TV, Movies, and Series show **Previous / Next** controls below the results, with the displayed range and total. Press Down from the last channel or poster row to reach them. Pages contain up to 100 live channels or 60 movies/series; changing category or search starts at page one. Back from details or playback returns to the same filters, page, and focused item.
+Live TV, Movies, and Series show **Previous / Next** controls below the results, with the displayed range and total. Press Down from the last channel or poster row to reach them. Pages contain up to 20 live channels or 60 movies/series; changing category or search starts at page one. P UP/P DOWN moves five channels within the current Live TV page and stops at the first or last channel. Back from details or playback returns to the same filters, page, and focused item.
 
 ### XMLTV setup
 
@@ -84,7 +84,7 @@ HD/FHD/4K suffixes are ignored for exact-name fallback, but ambiguous/fuzzy matc
 | OK | Enter | Select or play; during playback show information, then open playback options |
 | Back / Return | Escape or Backspace | Close overlay, player, detail, section, then app |
 | Play / Pause / Stop | Media keys | Playback control |
-| P UP / P DOWN (Channel + / −) | Page Up / Page Down | Previous/next catalog or TV Guide channel page; jump a screenful in Favorites, Recently Watched, series episodes/seasons, and Settings; previous/next live channel during playback |
+| P UP / P DOWN (Channel + / −) | Page Up / Page Down | Jump five channels in the Live TV list; previous/next Movies, Series, or TV Guide page; jump a screenful in Favorites, Recently Watched, episodes/seasons, and Settings; previous/next live channel during playback |
 | Left (live playback) | Arrow Left | Open the channel browse bar: Up/Down previews now/next, P UP/P DOWN jumps six channels, OK tunes |
 | Fast-forward / Rewind | Media keys | ±30/−10 seconds for VOD |
 | Up (VOD) / Right (live) | Arrow Up / Arrow Right | Cycle Auto, 16:9, 4:3, Zoom, and Stretch display modes |

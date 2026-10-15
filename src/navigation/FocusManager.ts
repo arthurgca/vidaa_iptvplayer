@@ -38,6 +38,14 @@ export class FocusManager {
     this.listeners.forEach((listener) => listener(key)); return true;
   }
   select() { this.nodes.get(this.current)?.onSelect(); }
+  /** Move by an exact number of items without leaving the list or activating a selection. */
+  jump(group: string, offset: number) {
+    const nodes = [...this.nodes.values()].filter((node) => node.group === group && this.inScope(node)).sort((a, b) => a.index - b.index);
+    if (!nodes.length) return false;
+    const index = nodes.findIndex((node) => node.key === this.current);
+    const target = index < 0 ? 0 : Math.max(0, Math.min(nodes.length - 1, index + offset));
+    return target !== index && this.focus(nodes[target]!.key);
+  }
   /** Jump roughly one visible page within a list, preserving the grid column where possible. */
   page(direction: -1 | 1, groups: string[]) {
     const current = this.nodes.get(this.current);

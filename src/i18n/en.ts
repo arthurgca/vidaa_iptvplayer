@@ -8,6 +8,7 @@ export const en = {
   'app.backendUnavailable': 'Backend unavailable: {error}',
   'app.back': '‹ Back',
   'app.pageNavigation': 'P UP / P DOWN: previous / next page',
+  'app.channelNavigation': 'P UP / P DOWN: jump 5 channels',
 
   'common.loading': 'Loading…',
   'common.retry': 'Retry',

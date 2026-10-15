@@ -16,7 +16,7 @@ vi.mock('../src/player/Player', () => ({
 
 let container: HTMLDivElement;
 const channels = Array.from({ length: 205 }, (_, index) => ({ id: String(index), name: `Channel ${index}`, categoryId: 'news' }));
-const selection = { channel: channels[204]!, offset: 200, channels: channels.slice(200) };
+const selection = { channel: channels[94]!, offset: 80, channels: channels.slice(80, 100) };
 const status = { version: '1.2.2', configured: true, demoMode: true, language: 'en' as const, languageConfigured: true, autoplayLive: false };
 const settle = () => act(() => new Promise<void>((resolve) => setTimeout(resolve, 0)));
 const focusSettled = () => act(() => new Promise<void>((resolve) => setTimeout(resolve, 70)));
@@ -29,7 +29,7 @@ beforeEach(() => {
   vi.spyOn(api, 'status').mockResolvedValue(status);
   vi.spyOn(api, 'liveSelection').mockResolvedValue(selection);
   vi.spyOn(api, 'liveCategories').mockResolvedValue([]);
-  vi.spyOn(api, 'channels').mockImplementation(async (_category, offset = 0) => ({ items: channels.slice(offset, offset + 100), total: channels.length, offset, limit: 100 }));
+  vi.spyOn(api, 'channels').mockImplementation(async (_category, offset = 0) => ({ items: channels.slice(offset, offset + 20), total: channels.length, offset, limit: 20 }));
   vi.spyOn(api, 'epg').mockResolvedValue({ progress: 0 });
   vi.spyOn(api, 'favorites').mockResolvedValue([]);
 });
@@ -50,10 +50,10 @@ describe('playback preference navigation', () => {
     vi.mocked(api.status).mockResolvedValue({ ...status, autoplayLive: true });
     await mount();
     const calls = vi.mocked(Player).mock.calls;
-    expect(calls[calls.length - 1]?.[0].media).toMatchObject({ type: 'live', id: '204', channels: selection.channels });
+    expect(calls[calls.length - 1]?.[0].media).toMatchObject({ type: 'live', id: '94', channels: selection.channels });
     act(() => container.querySelector<HTMLButtonElement>('.test-player button')!.click()); await settle(); await focusSettled();
-    expect(api.channels).toHaveBeenLastCalledWith(undefined, 200, '');
-    expect(document.activeElement?.textContent).toContain('Channel 204');
+    expect(api.channels).toHaveBeenLastCalledWith(undefined, 80, '');
+    expect(document.activeElement?.textContent).toContain('Channel 94');
     await back();
     expect(container.querySelector('.home-screen')).not.toBeNull();
     expect(api.liveSelection).toHaveBeenCalledTimes(1);
@@ -62,8 +62,8 @@ describe('playback preference navigation', () => {
   it('restores the remembered channel for manual Live TV entry without starting playback', async () => {
     await mount();
     act(() => container.querySelector<HTMLButtonElement>('.home-card')!.click()); await settle(); await settle(); await focusSettled();
-    expect(api.channels).toHaveBeenLastCalledWith(undefined, 200, '');
-    expect(document.activeElement?.textContent).toContain('Channel 204');
+    expect(api.channels).toHaveBeenLastCalledWith(undefined, 80, '');
+    expect(document.activeElement?.textContent).toContain('Channel 94');
     expect(Player).not.toHaveBeenCalled();
   });
 

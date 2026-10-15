@@ -46,7 +46,7 @@ beforeEach(() => {
   vi.spyOn(api, 'liveCategories').mockResolvedValue([{ id: 'news', name: 'News' }]);
   vi.spyOn(api, 'vodCategories').mockResolvedValue([{ id: 'drama', name: 'Drama' }]);
   vi.spyOn(api, 'seriesCategories').mockResolvedValue([{ id: 'drama', name: 'Drama' }]);
-  vi.spyOn(api, 'channels').mockImplementation(async (_category, offset = 0) => page(channels, offset, 100));
+  vi.spyOn(api, 'channels').mockImplementation(async (_category, offset = 0) => page(channels, offset, 20));
   vi.spyOn(api, 'vod').mockImplementation(async (_category, offset = 0) => page(movies, offset, 60));
   vi.spyOn(api, 'series').mockImplementation(async (_category, offset = 0) => page(movies, offset, 60));
   vi.spyOn(api, 'epg').mockResolvedValue({ progress: 0 });
@@ -60,23 +60,58 @@ afterEach(() => {
 });
 
 describe('catalog pagination', () => {
-  it.each(['live', 'movies', 'series'] as const)('pages the routed %s catalog with P UP/P DOWN, retaining filters and respecting bounds', async (kind) => {
+  it.each([0, 20, 200])('jumps five live channels within the page at offset %s without paging or playing', async (offset) => {
     vi.spyOn(api, 'status').mockResolvedValue({ version: '1.2.2', configured: true, demoMode: true, language: 'en', languageConfigured: true, autoplayLive: false });
-    vi.spyOn(api, 'liveSelection').mockResolvedValue({ offset: 0, channel: channels[0], channels: channels.slice(0, 100) });
+    vi.spyOn(api, 'liveSelection').mockResolvedValue({ offset, channel: channels[offset], channels: channels.slice(offset, offset + 20) });
     act(() => render(<RoutedHarness />, container)); await settle();
-    const homeIndex = kind === 'live' ? 0 : kind === 'movies' ? 1 : 2;
+    act(() => (container.querySelectorAll('.home-card')[0] as HTMLButtonElement).click()); await settle(); await settle();
+    await act(() => new Promise<void>((resolve) => setTimeout(resolve, 70)));
+    const last = Math.min(offset + 19, channels.length - 1);
+    const count = vi.mocked(api.channels).mock.calls.length;
+    const press = async (key: string) => { act(() => { document.dispatchEvent(new KeyboardEvent('keydown', { key })); }); await settle(); };
+    act(() => { focus.focus(`live:channel:${offset + 1}`); });
+    await press('PageDown'); expect(focus.focused).toBe(`live:channel:${Math.min(offset + 6, last)}`);
+    expect(container.querySelector('.epg-panel h2')?.textContent).toBe(`Channel ${Math.min(offset + 6, last)}`);
+    await press('PageUp'); expect(focus.focused).toBe(`live:channel:${Math.max(offset, Math.min(offset + 6, last) - 5)}`);
+    act(() => { focus.focus(`live:channel:${last}`); });
+    await press('ChannelDown'); expect(focus.focused).toBe(`live:channel:${last}`);
+    act(() => { focus.focus(`live:channel:${offset}`); });
+    await press('ChannelUp'); expect(focus.focused).toBe(`live:channel:${offset}`);
+    expect(api.channels).toHaveBeenCalledTimes(count);
+    expect(container.querySelector('.player-screen')).toBeNull();
+    expect(container.textContent).toContain('jump 5 channels');
+  });
+
+  it('ignores live channel jumps while the page is loading', async () => {
+    vi.spyOn(api, 'status').mockResolvedValue({ version: '1.2.2', configured: true, demoMode: true, language: 'en', languageConfigured: true, autoplayLive: false });
+    vi.spyOn(api, 'liveSelection').mockResolvedValue({ offset: 0, channel: channels[0], channels: channels.slice(0, 20) });
+    let resolve!: (value: Page<Channel>) => void;
+    vi.mocked(api.channels).mockImplementation(() => new Promise((done) => { resolve = done; }));
+    act(() => render(<RoutedHarness />, container)); await settle();
+    act(() => (container.querySelectorAll('.home-card')[0] as HTMLButtonElement).click()); await settle(); await settle();
+    act(() => { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'PageDown' })); document.dispatchEvent(new KeyboardEvent('keydown', { key: 'PageUp' })); }); await settle();
+    expect(api.channels).toHaveBeenCalledTimes(1);
+    expect(container.querySelectorAll('.channel-row')).toHaveLength(0);
+    act(() => resolve(page(channels, 0, 20))); await settle();
+    expect(container.querySelectorAll('.channel-row')).toHaveLength(20);
+  });
+
+  it.each(['movies', 'series'] as const)('pages the routed %s catalog with P UP/P DOWN, retaining filters and respecting bounds', async (kind) => {
+    vi.spyOn(api, 'status').mockResolvedValue({ version: '1.2.2', configured: true, demoMode: true, language: 'en', languageConfigured: true, autoplayLive: false });
+    act(() => render(<RoutedHarness />, container)); await settle();
+    const homeIndex = kind === 'movies' ? 1 : 2;
     act(() => (container.querySelectorAll('.home-card')[homeIndex] as HTMLButtonElement).click()); await settle(); await settle();
-    await click(kind === 'live' ? 'News' : 'Drama');
+    await click('Drama');
     const input = container.querySelector('input')!;
     act(() => { input.value = 'match'; input.dispatchEvent(new Event('input', { bubbles: true })); }); await settle();
-    const loader = kind === 'live' ? api.channels : kind === 'movies' ? api.vod : api.series;
-    const category = kind === 'live' ? 'news' : 'drama'; const size = kind === 'live' ? 100 : 60;
+    const loader = kind === 'movies' ? api.vod : api.series;
+    const category = 'drama'; const size = 60;
     const press = async (key: string) => { act(() => { document.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true })); }); await settle(); };
     const count = vi.mocked(loader).mock.calls.length;
     await press('PageUp'); expect(loader).toHaveBeenCalledTimes(count);
     await press('PageDown'); expect(loader).toHaveBeenLastCalledWith(category, size, 'match');
     await act(() => new Promise<void>((resolve) => setTimeout(resolve, 70)));
-    expect(document.activeElement?.textContent).toContain(kind === 'live' ? 'Channel 100' : 'Movie 60');
+    expect(document.activeElement?.textContent).toContain('Movie 60');
     await press('ChannelDown'); expect(loader).toHaveBeenLastCalledWith(category, size * 2, 'match');
     const finalCount = vi.mocked(loader).mock.calls.length;
     await press('PageDown'); expect(loader).toHaveBeenCalledTimes(finalCount);
@@ -111,7 +146,7 @@ describe('catalog pagination', () => {
 
   it('pages TV Guide channels without changing the time window and focuses the new first channel', async () => {
     vi.spyOn(api, 'status').mockResolvedValue({ version: '1.2.2', configured: true, demoMode: true, language: 'en', languageConfigured: true, autoplayLive: false });
-    vi.spyOn(api, 'liveSelection').mockResolvedValue({ offset: 0, channels: channels.slice(0, 100) });
+    vi.spyOn(api, 'liveSelection').mockResolvedValue({ offset: 0, channels: channels.slice(0, 20) });
     vi.spyOn(api, 'guide').mockImplementation(async (start, offset = 0) => ({ start, end: start + 3 * 3600_000, offset, limit: 6, total: 13, items: channels.slice(offset, Math.min(offset + 6, 13)).map((channel) => ({ channel, programs: [] })) }));
     act(() => render(<RoutedHarness />, container)); await settle();
     act(() => (container.querySelectorAll('.home-card')[0] as HTMLButtonElement).click()); await settle(); await settle();
@@ -147,25 +182,31 @@ describe('catalog pagination', () => {
     expect(open).toHaveBeenCalledWith(movies[60]);
   });
 
-  it('loads live channels beyond 100 and plays using the current page', async () => {
+  it('shows 20 live channels per page and plays using the current page', async () => {
     await mount('live');
+    expect(container.querySelectorAll('.channel-row')).toHaveLength(20);
+    expect(container.textContent).toContain('1–20 of 205');
     await click('Next ›');
-    expect(api.channels).toHaveBeenLastCalledWith(undefined, 100, '');
-    expect(container.querySelectorAll('.channel-row')).toHaveLength(100);
-    expect(container.textContent).toContain('101–200 of 205');
-    expect(container.querySelector('.channel-number')?.textContent).toBe('101');
+    expect(api.channels).toHaveBeenLastCalledWith(undefined, 20, '');
+    expect(container.querySelectorAll('.channel-row')).toHaveLength(20);
+    expect(container.textContent).toContain('21–40 of 205');
+    expect(container.querySelector('.channel-number')?.textContent).toBe('21');
     act(() => (container.querySelector('.channel-row') as HTMLButtonElement).click());
-    expect(open).toHaveBeenCalledWith(channels[100], channels.slice(100, 200));
-    await click('Next ›');
+    expect(open).toHaveBeenCalledWith(channels[20], channels.slice(20, 40));
+    act(() => render(null, container));
+    await mount('live', { category: '', search: '', offset: 200 });
     expect(container.querySelectorAll('.channel-row')).toHaveLength(5);
+    expect(container.textContent).toContain('201–205 of 205');
     expect(button('Next ›').disabled).toBe(true);
+    await click('‹ Previous');
+    expect(api.channels).toHaveBeenLastCalledWith(undefined, 180, '');
   });
 
   it.each(['live', 'movies', 'series'] as const)('resets %s category and search to page one and carries filters into the next request', async (kind) => {
     await mount(kind);
     const loader = kind === 'live' ? api.channels : kind === 'movies' ? api.vod : api.series;
     const category = kind === 'live' ? 'news' : 'drama';
-    const size = kind === 'live' ? 100 : 60;
+    const size = kind === 'live' ? 20 : 60;
     await click('Next ›');
     await click(kind === 'live' ? 'News' : 'Drama');
     expect(loader).toHaveBeenLastCalledWith(category, 0, '');
@@ -260,15 +301,15 @@ describe('catalog pagination', () => {
   });
 
   it('disables Next for an exact page-size total and connects the last live channel to the pager', async () => {
-    vi.mocked(api.channels).mockImplementation(async (_category, offset = 0) => page(channels.slice(0, 200), offset, 100));
+    vi.mocked(api.channels).mockImplementation(async (_category, offset = 0) => page(channels.slice(0, 40), offset, 20));
     await mount('live');
-    expect(focus.focus('live:channel:99')).toBe(true);
+    expect(focus.focus('live:channel:19')).toBe(true);
     act(() => { focus.move('down'); });
     expect(focus.focused).toBe('live:page:next');
     act(() => focus.select()); await settle();
     expect(button('Next ›').disabled).toBe(true);
-    expect(container.textContent).toContain('101–200 of 200');
-    expect(focus.focus('live:channel:199')).toBe(true);
+    expect(container.textContent).toContain('21–40 of 40');
+    expect(focus.focus('live:channel:39')).toBe(true);
     act(() => { focus.move('down'); });
     expect(focus.focused).toBe('live:page:previous');
   });
