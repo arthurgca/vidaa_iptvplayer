@@ -101,6 +101,9 @@ export function parseMediaDuration(value: string | undefined) {
 
 export const BROWSE_ROWS = 6;
 export const EPG_DEBOUNCE_MS = 250;
+export const PROGRESS_SAVE_INTERVAL_MS = 15_000;
+let lastCheckpointAt = 0;
+const checkpointTime = () => (lastCheckpointAt = Math.max(Date.now(), lastCheckpointAt + 1));
 
 /** Rows shown around the browse cursor: centred while there is room, pinned to either end of the list otherwise. */
 export function browseWindow(total: number, index: number, size = BROWSE_ROWS) {
@@ -109,7 +112,7 @@ export function browseWindow(total: number, index: number, size = BROWSE_ROWS) {
   return { start, end: start + size };
 }
 
-export function Player({ media, registerAction, close }: { media: Playable; registerAction: (handler: ((action: RemoteAction) => boolean) | null) => void; close: () => void }) {
+export function Player({ media, registerAction, close, liveChannelChanged }: { media: Playable; registerAction: (handler: ((action: RemoteAction) => boolean) | null) => void; close: () => void; liveChannelChanged?: (channel: Channel) => void }) {
   const t = useTranslate();
   const video = useRef<TrackVideo>(null); const hls = useRef<HlsType>(); const hideTimer = useRef<number>(); const resumeApplied = useRef(false);
   const generation = useRef(0); const recovery = useRef(new RecoveryBudget());
@@ -201,7 +204,7 @@ export function Player({ media, registerAction, close }: { media: Playable; regi
     const element = video.current; if (!element) return;
     const nextDuration = playableDuration(element);
     const nextPosition = Number.isFinite(element.currentTime) ? element.currentTime : 0;
-    if (session.current?.media.id === active.id && (resumeApplied.current || active.type === 'live')) { session.current.position = nextPosition; session.current.duration = nextDuration; }
+    if (session.current?.media.type === active.type && session.current.media.id === active.id && !session.current.completed && (resumeApplied.current || active.type === 'live')) { session.current.position = nextPosition; session.current.duration = nextDuration; }
     const bufferedEnd = element.buffered.length ? element.buffered.end(element.buffered.length - 1) : 0;
     setDuration(nextDuration); setPosition(nextPosition); setBuffered(nextDuration ? clampSeekTime(bufferedEnd, nextDuration) : 0);
   };
@@ -210,7 +213,7 @@ export function Player({ media, registerAction, close }: { media: Playable; regi
     const nextDuration = playableDuration(element) || duration;
     if (!nextDuration) return;
     const target = clampSeekTime(nextPosition, nextDuration);
-    element.currentTime = target; setPosition(target); show();
+    element.currentTime = target; syncPlayback(); show();
   };
   const selectAspectMode = (mode: AspectMode) => { setAspectMode(mode); saveAspectMode(mode); show(); };
   const cycleAspectMode = (direction = 1) => { setAspectMode((current) => { const next = nextAspectMode(current, direction); saveAspectMode(next); return next; }); show(); };
@@ -231,9 +234,22 @@ export function Player({ media, registerAction, close }: { media: Playable; regi
   useEffect(() => {
     const record = { media: active, position: active.resumeAt || 0, duration: 0, completed: false, started: false };
     session.current = record; recovery.current.reset(); setAttempt(0); restartAt.current = undefined;
+    if (active.type === 'live') liveChannelChanged?.(active.item as Channel);
     void start();
+    const checkpoint = () => { syncPlayback(); void saveSession(record); };
+    const interval = window.setInterval(() => {
+      if (record.started && !record.completed && !video.current?.paused) checkpoint();
+    }, PROGRESS_SAVE_INTERVAL_MS);
+    const hidden = () => { if (document.visibilityState === 'hidden') checkpoint(); };
+    const pagehide = () => checkpoint();
+    document.addEventListener('visibilitychange', hidden);
+    window.addEventListener('pagehide', pagehide);
     return () => {
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', hidden);
+      window.removeEventListener('pagehide', pagehide);
       generation.current++; clearRecoveryTimers();
+      syncPlayback();
       if (record.started) void saveSession(record);
       hls.current?.destroy(); hls.current = undefined; window.clearTimeout(hideTimer.current);
     };
@@ -268,6 +284,9 @@ export function Player({ media, registerAction, close }: { media: Playable; regi
       if (action === 'NAV_LEFT' && active.type === 'live') { setBrowsing(true); setOverlay(true); return true; }
       if (browsing && action === 'NAV_UP') { setBrowseIndex((value) => Math.max(0, value - 1)); return true; }
       if (browsing && action === 'NAV_DOWN') { setBrowseIndex((value) => Math.min(channels.length - 1, value + 1)); return true; }
+      if (browsing && (action === 'CHANNEL_UP' || action === 'CHANNEL_DOWN')) {
+        setBrowseIndex((value) => Math.max(0, Math.min(channels.length - 1, value + (action === 'CHANNEL_UP' ? -BROWSE_ROWS : BROWSE_ROWS)))); return true;
+      }
       if (!browsing && (action === 'NAV_UP' || action === 'CHANNEL_UP') && channels.length) { switchChannel(channels.findIndex((c) => c.id === active.id) - 1); return true; }
       if (!browsing && (action === 'NAV_DOWN' || action === 'CHANNEL_DOWN') && channels.length) { switchChannel(channels.findIndex((c) => c.id === active.id) + 1); return true; }
       if (!browsing && ((action === 'NAV_UP' && active.type !== 'live') || (action === 'NAV_RIGHT' && active.type === 'live'))) { cycleAspectMode(); return true; }
@@ -282,7 +301,7 @@ export function Player({ media, registerAction, close }: { media: Playable; regi
   }, [active, overlay, browsing, browseIndex, state, options, autoNext, attempt]);
   const saveSession = (record = session.current) => {
     if (!record?.started) return Promise.resolve();
-    return api.watched({ type: record.media.type, id: record.media.id, item: record.media.item, series: record.media.series, position: record.position, duration: record.duration, completed: record.completed }).then(() => undefined).catch(() => undefined);
+    return api.watched({ type: record.media.type, id: record.media.id, item: record.media.item, series: record.media.series, position: record.position, duration: record.duration, completed: record.completed, checkpointAt: checkpointTime() }, true).then(() => undefined).catch(() => undefined);
   };
   const ended = () => {
     if (active.type === 'live') { recover(); return; }
@@ -292,7 +311,12 @@ export function Player({ media, registerAction, close }: { media: Playable; regi
     if (autoNext && upcoming) playNext();
   };
   const playing = () => {
-    if (session.current) session.current.started = true;
+    if (session.current) {
+      const firstPlay = !session.current.started;
+      session.current.started = true;
+      applyResume(); syncPlayback();
+      if (firstPlay) void saveSession();
+    }
     window.clearTimeout(stallTimer.current); stallTimer.current = undefined; window.clearTimeout(retryTimer.current); retryTimer.current = undefined;
     window.clearTimeout(healthyTimer.current);
     healthyTimer.current = window.setTimeout(() => { recovery.current.reset(); setAttempt(0); }, 30_000);

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { api } from '../api/client';
 import { Empty, Image, Spinner, formatTime } from '../components/common';
 import { SearchField } from '../components/SearchField';
@@ -15,6 +15,7 @@ export function Guide({ category, play }: { category: string; play: (channel: Ch
   const [start, setStart] = useState(currentHour); const [offset, setOffset] = useState(0); const [search, setSearch] = useState('');
   const [data, setData] = useState<GuidePage>(); const [error, setError] = useState(''); const [loading, setLoading] = useState(true); const [revision, setRevision] = useState(0);
   const [selected, setSelected] = useState<Program>();
+  const pendingPage = useRef(false);
   useEffect(() => {
     let active = true;
     setLoading(true); setError(''); setSelected(undefined);
@@ -23,10 +24,16 @@ export function Guide({ category, play }: { category: string; play: (channel: Ch
     return () => { active = false; };
   }, [start, offset, category, search, revision]);
   useEffect(() => {
+    if (focus.focused.startsWith('guide:channels-')) pendingPage.current = true;
     if (loading) return;
-    const timer = window.setTimeout(() => { if (!focus.focus(focus.focused)) focus.focus('guide:now'); }, 50);
+    const timer = window.setTimeout(() => {
+      const first = data?.items[0];
+      if (pendingPage.current && first) focus.focus(`guide:channel:${first.channel.id}`);
+      else if (!focus.focus(focus.focused)) focus.focus('guide:now');
+      if (first) pendingPage.current = false;
+    }, 50);
     return () => window.clearTimeout(timer);
-  }, [loading]);
+  }, [loading, data?.offset]);
   const rows = data?.items || [];
   const windowStart = data?.start || start; const windowEnd = data?.end || start + 3 * HOUR;
   const programKey = (row: number, index: number) => `guide:program:${rows[row]!.channel.id}:${index}`;

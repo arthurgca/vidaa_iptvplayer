@@ -20,6 +20,11 @@ import type { Channel, Episode, Favorite, HistoryItem, SeriesItem, VodItem } fro
 
 type RouteName = 'home'|'live'|'guide'|'movies'|'movie-details'|'series'|'series-details'|'favorites'|'recent'|'settings'|'player';
 interface Route { name: RouteName; data?: unknown; restoreFocus?: string }
+const PAGE_GROUPS: Partial<Record<RouteName, string[]>> = {
+  favorites: ['favorites', 'favorites-items'], recent: ['recent', 'recent-remove'],
+  'series-details': ['episodes', 'episode-restarts', 'seasons'], settings: ['settings-controls']
+};
+const PAGINATED_ROUTES: RouteName[] = ['live', 'movies', 'series', 'guide'];
 
 export function App() {
   // The TV's own language carries the UI until the backend answers with a preference someone actually chose.
@@ -39,21 +44,52 @@ function AppRouter({ language, setLanguage }: RouterProps) {
   const current = routes[routes.length - 1];
   const currentRoute = useRef(current); currentRoute.current = current;
   const recentRequest = useRef(0);
+  const navigationRequest = useRef(0);
+  const playingLiveChannel = useRef<string>();
 
   const restoreSoon = (key?: string) => window.setTimeout(() => { if (!key || !focus.focus(key)) focus.focusFirst(); }, 50);
-  const push = (name: RouteName, data?: unknown) => setRoutes((stack) => [...stack.slice(0,-1), { ...stack[stack.length-1]!, restoreFocus: focus.focused }, { name, data }]);
-  const replaceHome = () => { setRoutes([{ name: 'home' }]); restoreSoon('home:live'); };
+  const push = (name: RouteName, data?: unknown, restoreFocus?: string) => { navigationRequest.current++; setRoutes((stack) => [...stack.slice(0,-1), { ...stack[stack.length-1]!, restoreFocus: focus.focused }, { name, data, restoreFocus }]); };
+  const replaceHome = () => { navigationRequest.current++; setRoutes([{ name: 'home' }]); restoreSoon('home:live'); };
   const back = () => {
+    navigationRequest.current++;
     if (routes.length <= 1) { try { window.close(); } catch { /* browser preview */ } return; }
-    const previous = routes[routes.length - 2]; setRoutes((stack) => stack.slice(0, -1)); restoreSoon(previous?.restoreFocus);
+    const previous = routes[routes.length - 2];
+    const restoreFocus = current?.name === 'player' && previous?.name === 'live' && playingLiveChannel.current
+      ? `live:channel:${playingLiveChannel.current}` : previous?.restoreFocus;
+    setRoutes((stack) => stack.slice(0, -1).map((route, index) => index === stack.length - 2 ? { ...route, restoreFocus } : route));
+    restoreSoon(restoreFocus);
   };
-  useEffect(() => { api.status().then((status) => {
-    if (status.languageConfigured) setLanguage(status.language);
-    setRoutes([{ name: status.configured ? 'home' : 'settings', data: { firstRun: true } }]);
-  }).catch((error) => setStartupError(error.message)); }, []);
+  useEffect(() => {
+    let active = true;
+    void api.status().then(async (status) => {
+      if (!active) return;
+      if (status.languageConfigured) setLanguage(status.language);
+      if (!status.configured) { setRoutes([{ name: 'settings', data: { firstRun: true } }]); return; }
+      const selection = status.autoplayLive ? await api.liveSelection().catch(() => undefined) : undefined;
+      if (!active) return;
+      if (selection?.channel) {
+        const channel = selection.channel;
+        setCatalog('live', { ...emptyCatalogQuery(), offset: selection.offset });
+        setRoutes([{ name: 'home', restoreFocus: 'home:live' }, { name: 'live', restoreFocus: `live:channel:${channel.id}` }, {
+          name: 'player', data: { type: 'live', id: channel.id, item: channel, extension: channel.extension, channels: selection.channels } satisfies Playable
+        }]);
+      } else setRoutes([{ name: 'home' }]);
+    }).catch((error) => { if (active) setStartupError(error.message); });
+    return () => { active = false; };
+  }, []);
   useEffect(() => listenToRemote((action) => {
     setLastKey(action);
     if (current?.name === 'player' && playerAction.current) { if (playerAction.current(action)) return; }
+    if (action === 'CHANNEL_UP' || action === 'CHANNEL_DOWN') {
+      const direction = action === 'CHANNEL_UP' ? -1 : 1;
+      if (current && PAGINATED_ROUTES.includes(current.name)) {
+        const key = current.name === 'guide' ? `guide:channels-${direction < 0 ? 'previous' : 'next'}`
+          : `${current.name}:page:${direction < 0 ? 'previous' : 'next'}`;
+        // Disabled and loading pagination controls are unregistered, so bounds stay identical to OK.
+        if (focus.focus(key)) focus.select();
+      } else if (current && PAGE_GROUPS[current.name]) focus.page(direction, PAGE_GROUPS[current.name]!);
+      return;
+    }
     if (action === 'BACK') { back(); return; }
     if (action === 'SELECT') { focus.select(); return; }
     if (action === 'NAV_UP') focus.move('up');
@@ -67,6 +103,15 @@ function AppRouter({ language, setLanguage }: RouterProps) {
   if (!current) return <Spinner label={t('app.starting')} />;
   const playMovie = (item: VodItem, resumeAt = 0) => push('player', { type: 'movie', id: item.id, item, extension: item.extension, resumeAt } satisfies Playable);
   const playEpisode = (episode: Episode, series?: SeriesItem, resumeAt = 0, episodes?: Episode[]) => push('player', { type: 'series', id: episode.id, item: episode, extension: episode.extension, series, resumeAt, episodes } satisfies Playable);
+  const openHomeRoute = async (route: string) => {
+    if (route !== 'live') { push(route as RouteName); return; }
+    const request = ++navigationRequest.current;
+    const origin = currentRoute.current;
+    const selection = await api.liveSelection().catch(() => undefined);
+    if (request !== navigationRequest.current || currentRoute.current !== origin) return;
+    if (selection) setCatalog('live', { ...emptyCatalogQuery(), offset: selection.offset });
+    push('live', undefined, selection?.channel ? `live:channel:${selection.channel.id}` : undefined);
+  };
   const openFavorite = (row: Favorite) => {
     if (row.type === 'live') push('player', { type: 'live', id: row.id, item: row.item as Channel, channels: [row.item as Channel] } satisfies Playable);
     else if (row.type === 'movie') push('movie-details', row.item);
@@ -84,7 +129,7 @@ function AppRouter({ language, setLanguage }: RouterProps) {
   };
   let screen: preact.ComponentChildren;
   switch (current.name) {
-    case 'home': screen = <Home open={(route) => push(route as RouteName)} />; break;
+    case 'home': screen = <Home open={openHomeRoute} />; break;
     case 'live': screen = <LiveTV query={catalogs.live} setQuery={(query) => setCatalog('live', query)} restoreFocus={current.restoreFocus} guide={() => push('guide')} play={(channel, channels) => push('player', { type: 'live', id: channel.id, item: channel, extension: channel.extension, channels } satisfies Playable)} />; break;
     case 'guide': screen = <Guide category={catalogs.live.category} play={(channel, channels) => push('player', { type: 'live', id: channel.id, item: channel, extension: channel.extension, channels } satisfies Playable)} />; break;
     case 'movies': screen = <MediaCatalog kind="movies" query={catalogs.movies} setQuery={(query) => setCatalog('movies', query)} restoreFocus={current.restoreFocus} open={(item) => push('movie-details', item)} />; break;
@@ -94,10 +139,11 @@ function AppRouter({ language, setLanguage }: RouterProps) {
     case 'favorites': screen = <Favorites open={openFavorite} />; break;
     case 'recent': screen = <Recent open={openRecent} />; break;
     case 'settings': screen = <Settings firstRun={Boolean((current.data as { firstRun?: boolean })?.firstRun)} language={language} setLanguage={setLanguage} saved={(current.data as { firstRun?: boolean })?.firstRun ? replaceHome : back} cleared={() => setCatalogs({ live: emptyCatalogQuery(), movies: emptyCatalogQuery(), series: emptyCatalogQuery() })} />; break;
-    case 'player': screen = <Player media={current.data as Playable} registerAction={(handler) => { playerAction.current = handler; }} close={back} />; break;
+    case 'player': screen = <Player media={current.data as Playable} registerAction={(handler) => { playerAction.current = handler; }} close={back} liveChannelChanged={(channel) => { playingLiveChannel.current = channel.id; }} />; break;
   }
   const debug = import.meta.env.DEV && new URLSearchParams(location.search).get('debug') === '1';
   // The hint is fixed to the bottom of the safe area, so the screen underneath reserves a band for it.
   const backHint = current.name !== 'home' && current.name !== 'player';
-  return <div className={`app-shell${backHint ? ' with-hint' : ''}`}>{screen}{backHint && <div className="back-hint">{t('app.back')}</div>}{debug &&<div className="debug-overlay">route: {current.name}<br/>focus: {focusedKey || 'none'}<br/>key: {lastKey || 'none'}<br/>viewport: {window.innerWidth}x{window.innerHeight} dpr:{window.devicePixelRatio || 1}</div>}</div>;
+  const pageHint = PAGINATED_ROUTES.includes(current.name) || Boolean(PAGE_GROUPS[current.name]);
+  return <div className={`app-shell${backHint ? ' with-hint' : ''}`}>{screen}{backHint && <div className="back-hint">{t('app.back')}{pageHint && <> · {t('app.pageNavigation')}</>}</div>}{debug &&<div className="debug-overlay">route: {current.name}<br/>focus: {focusedKey || 'none'}<br/>key: {lastKey || 'none'}<br/>viewport: {window.innerWidth}x{window.innerHeight} dpr:{window.devicePixelRatio || 1}</div>}</div>;
 }

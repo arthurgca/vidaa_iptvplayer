@@ -4,13 +4,14 @@ const byCode: Record<number, RemoteAction> = {
   37: 'NAV_LEFT', 38: 'NAV_UP', 39: 'NAV_RIGHT', 40: 'NAV_DOWN', 13: 'SELECT',
   8: 'BACK', 461: 'BACK', 10009: 'BACK', 27: 'BACK',
   415: 'PLAY', 19: 'PAUSE', 413: 'STOP', 417: 'FAST_FORWARD', 412: 'REWIND',
-  427: 'CHANNEL_UP', 428: 'CHANNEL_DOWN', 77: 'OPTIONS'
+  427: 'CHANNEL_UP', 428: 'CHANNEL_DOWN', 33: 'CHANNEL_UP', 34: 'CHANNEL_DOWN', 77: 'OPTIONS'
 };
 
 const byKey: Record<string, RemoteAction> = {
   ArrowLeft: 'NAV_LEFT', ArrowUp: 'NAV_UP', ArrowRight: 'NAV_RIGHT', ArrowDown: 'NAV_DOWN',
   Enter: 'SELECT', Escape: 'BACK', Backspace: 'BACK', MediaPlay: 'PLAY', MediaPause: 'PAUSE',
-  MediaStop: 'STOP', MediaFastForward: 'FAST_FORWARD', MediaRewind: 'REWIND', ContextMenu: 'OPTIONS', m: 'OPTIONS', M: 'OPTIONS'
+  MediaStop: 'STOP', MediaFastForward: 'FAST_FORWARD', MediaRewind: 'REWIND', ContextMenu: 'OPTIONS', m: 'OPTIONS', M: 'OPTIONS',
+  ChannelUp: 'CHANNEL_UP', ChannelDown: 'CHANNEL_DOWN', PageUp: 'CHANNEL_UP', PageDown: 'CHANNEL_DOWN'
 };
 
 export function remoteAction(event: KeyboardEvent): RemoteAction | undefined {

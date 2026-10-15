@@ -9,7 +9,7 @@ export interface Episode { id: string; name: string; season: number; episode: nu
 export interface Program { channelId: string; title: string; description?: string; start: number; end: number }
 export interface EpgNow { current?: Program; next?: Program; progress: number }
 export interface Favorite { type: MediaKind; id: string; item: Channel | VodItem | SeriesItem; addedAt: number }
-export interface HistoryItem { type: MediaKind; id: string; item: Channel | VodItem | Episode; position: number; duration: number; watchedAt: number; completed?: boolean; series?: SeriesItem }
+export interface HistoryItem { type: MediaKind; id: string; item: Channel | VodItem | Episode; position: number; duration: number; watchedAt: number; checkpointAt?: number; completed?: boolean; series?: SeriesItem }
 export interface GuideRow { channel: Channel; programs: Program[] }
 export interface GuidePage extends Page<GuideRow> { start: number; end: number }
 export interface Page<T> { items: T[]; total: number; offset: number; limit: number }

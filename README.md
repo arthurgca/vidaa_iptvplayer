@@ -84,8 +84,8 @@ HD/FHD/4K suffixes are ignored for exact-name fallback, but ambiguous/fuzzy matc
 | OK | Enter | Select or play; during playback show information, then open playback options |
 | Back / Return | Escape or Backspace | Close overlay, player, detail, section, then app |
 | Play / Pause / Stop | Media keys | Playback control |
-| Channel + / − | — | Previous/next live channel |
-| Left (live playback) | Arrow Left | Open the channel browse bar: Up/Down previews now/next without leaving the current channel, OK tunes |
+| P UP / P DOWN (Channel + / −) | Page Up / Page Down | Previous/next catalog or TV Guide channel page; jump a screenful in Favorites, Recently Watched, series episodes/seasons, and Settings; previous/next live channel during playback |
+| Left (live playback) | Arrow Left | Open the channel browse bar: Up/Down previews now/next, P UP/P DOWN jumps six channels, OK tunes |
 | Fast-forward / Rewind | Media keys | ±30/−10 seconds for VOD |
 | Up (VOD) / Right (live) | Arrow Up / Arrow Right | Cycle Auto, 16:9, 4:3, Zoom, and Stretch display modes |
 | Down (VOD) | Arrow Down | Open playback options |
@@ -187,6 +187,7 @@ Rebuild the image afterwards so the deployed server reports the new version.
 - `GET /api/xtream/vod/categories`, `/api/xtream/vod`, `/api/xtream/vod/:id`
 - `GET /api/xtream/series/categories`, `/api/xtream/series`, `/api/xtream/series/:id`
 - `GET /api/epg/:channelId`, `/api/play/:kind/:id`
+- `GET /api/live/selection` (current channel and catalog page selected by the playback preferences)
 - `GET /api/guide` (`start`, `offset`, `category_id`, `search`; six channels per page)
 - `GET/PUT /api/favorites`, `DELETE /api/favorites/:type/:id`, `POST /api/favorites/move`
 - `GET/POST /api/history`, `DELETE /api/history/:type/:id`
@@ -196,6 +197,10 @@ Request bodies are limited, upstream calls time out, URL schemes are validated, 
 ## Playback and codec limitations
 
 Playback first uses the TV's native `<video>` and hardware decoder. HLS uses native support when available; otherwise the fallback is loaded only when needed. MPEG-TS, HLS, and MP4 success still depends on the VIDAA model, firmware, container, codecs, audio, and provider headers. There is no FFmpeg fallback by design.
+
+**Autoplay live** starts Live TV when a configured app launches. **Remember last channel** restores the most recently watched live channel for autoplay and when opening Live TV manually, including its catalog page. With remembering disabled, or if the saved channel is no longer available, the first available channel is selected. Back from startup playback returns to the channel list and then Home.
+
+Watch progress is checkpointed every 15 seconds during playback, and also when playback starts, pauses, completes, the player closes, or the app becomes hidden or exits. Exit requests use fetch keepalive, and older checkpoints cannot overwrite newer progress. An abrupt power loss resumes from the last successful checkpoint; unsaved progress since that checkpoint can still be lost.
 
 If one channel fails while others work, try **Settings → Live format → HLS** or **TS**. A codec/container mismatch must be corrected at the provider/source.
 

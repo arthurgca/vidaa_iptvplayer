@@ -13,6 +13,31 @@ afterEach(async () => {
 });
 
 describe('content data state', () => {
+  it('persists the newest checkpoint when progress requests arrive out of order', async () => {
+    temporary = await mkdtemp(path.join(tmpdir(), 'vidaa-store-'));
+    process.env.DATA_DIR = temporary;
+    const { library } = await import('../server/store');
+    const row = { type: 'movie' as const, id: 'movie', item: { id: 'movie', name: 'Movie', categoryId: '' }, position: 300, duration: 300, completed: true, watchedAt: 2, checkpointAt: 200 };
+    await library.watched(row);
+    expect(await library.watched({ ...row, position: 250, completed: false, watchedAt: 3, checkpointAt: 100 })).toEqual(row);
+    vi.resetModules();
+    const reloaded = await import('../server/store'); await reloaded.initStore();
+    expect(reloaded.library.history()).toEqual([row]);
+    await reloaded.library.watched({ ...row, position: 20, completed: false, checkpointAt: 300 });
+    expect(reloaded.library.history()[0]?.position).toBe(20);
+    expect(reloaded.library.history()[0]?.completed).toBe(false);
+  });
+
+  it('keeps the last played channel first when an older channel save arrives late', async () => {
+    temporary = await mkdtemp(path.join(tmpdir(), 'vidaa-store-'));
+    process.env.DATA_DIR = temporary;
+    const { library } = await import('../server/store');
+    const row = (id: string, checkpointAt: number) => ({ type: 'live' as const, id, item: { id, name: id, categoryId: '' }, position: 0, duration: 0, watchedAt: Date.now(), checkpointAt });
+    await library.watched(row('new', 200));
+    await library.watched(row('old', 100));
+    expect(library.history().map((item) => item.id)).toEqual(['new', 'old']);
+  });
+
   it('persists favorite reordering and removes one history item without affecting favorites', async () => {
     temporary = await mkdtemp(path.join(tmpdir(), 'vidaa-store-'));
     process.env.DATA_DIR = temporary;

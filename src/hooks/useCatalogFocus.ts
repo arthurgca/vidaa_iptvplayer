@@ -5,15 +5,19 @@ import { useFocusManager } from '../navigation/FocusContext';
 export function useCatalogFocus(kind: string, loading: boolean, firstItem: string | undefined, fallback: string, restoreFocus?: string) {
   const focus = useFocusManager();
   const pendingRestore = useRef(restoreFocus);
+  const pendingPage = useRef(false);
   useEffect(() => {
+    if (focus.focused.startsWith(`${kind}:page:`)) pendingPage.current = true;
     if (loading) return;
     const timer = window.setTimeout(() => {
+      const restoring = pendingRestore.current;
       const target = pendingRestore.current || focus.focused;
       if (pendingRestore.current && firstItem) pendingRestore.current = undefined;
-      if (focus.focused.startsWith(`${kind}:page:`) && firstItem) focus.focus(firstItem);
+      if (!restoring && pendingPage.current && firstItem) focus.focus(firstItem);
       else if (!focus.focus(target)) {
         if (!firstItem || !focus.focus(firstItem)) focus.focus(fallback);
       }
+      if (firstItem) pendingPage.current = false;
     }, 50);
     return () => window.clearTimeout(timer);
   }, [kind, loading, firstItem, fallback, restoreFocus, focus]);

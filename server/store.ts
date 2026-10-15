@@ -49,8 +49,13 @@ export const library = {
   },
   history: () => data.history.slice(0, 100),
   async watched(value: HistoryItem) {
+    const previous = data.history.find((item) => item.type === value.type && item.id === value.id);
+    // A slow periodic request must not overwrite a newer pause, exit, or completion checkpoint.
+    if (previous?.checkpointAt && value.checkpointAt && previous.checkpointAt > value.checkpointAt) return previous;
     data.history = data.history.filter((item) => !(item.type === value.type && item.id === value.id));
-    data.history.unshift(value); data.history = data.history.slice(0, 100); await persist(); return value;
+    data.history.unshift(value);
+    data.history.sort((a, b) => (b.checkpointAt ?? b.watchedAt) - (a.checkpointAt ?? a.watchedAt));
+    data.history = data.history.slice(0, 100); await persist(); return value;
   },
   async clear() {
     data = { favorites: [], history: [], contentCleared: true };

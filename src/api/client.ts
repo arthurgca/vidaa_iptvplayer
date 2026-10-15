@@ -1,7 +1,8 @@
 import type { Language } from '../i18n';
 import type { AppConfig, Category, Channel, EpgNow, Favorite, HistoryItem, MediaKind, Page, SeriesItem, VodItem, Episode, GuidePage } from '../types';
 
-export interface AppStatus { version: string; configured: boolean; demoMode: boolean; language: Language; languageConfigured: boolean }
+export interface AppStatus { version: string; configured: boolean; demoMode: boolean; language: Language; languageConfigured: boolean; autoplayLive: boolean }
+export interface LiveSelection { channel?: Channel; offset: number; channels: Channel[] }
 
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, { ...options, headers: { 'content-type': 'application/json', ...options?.headers } });
@@ -25,6 +26,7 @@ export const api = {
   clearData: () => request<AppConfig>('/api/data', { method: 'DELETE' }),
   clearAllData: () => request<AppConfig>('/api/data/all', { method: 'DELETE' }),
   liveCategories: () => request<Category[]>('/api/xtream/categories/live'),
+  liveSelection: () => request<LiveSelection>('/api/live/selection'),
   channels: (categoryId?: string, offset = 0, search = '') => request<Page<Channel>>(`/api/xtream/streams/live?${query({ category_id: categoryId, offset, limit: 100, search })}`),
   vodCategories: () => request<Category[]>('/api/xtream/vod/categories'),
   vod: (categoryId?: string, offset = 0, search = '') => request<Page<VodItem>>(`/api/xtream/vod?${query({ category_id: categoryId, offset, limit: 60, search })}`),
@@ -40,6 +42,6 @@ export const api = {
   moveFavorite: (type: string, id: string, direction: number) => request<Favorite[]>('/api/favorites/move', { method: 'POST', body: JSON.stringify({ type, id, direction }) }),
   history: () => request<HistoryItem[]>('/api/history'),
   forget: (type: string, id: string) => request<void>(`/api/history/${type}/${encodeURIComponent(id)}`, { method: 'DELETE' }),
-  watched: (value: Omit<HistoryItem, 'watchedAt'>) => request<HistoryItem>('/api/history', { method: 'POST', body: JSON.stringify(value) }),
+  watched: (value: Omit<HistoryItem, 'watchedAt'>, keepalive = false) => request<HistoryItem>('/api/history', { method: 'POST', body: JSON.stringify(value), keepalive }),
   playUrl: (kind: MediaKind, id: string, extension?: string) => `/api/play/${kind}/${encodeURIComponent(id)}${extension ? `?ext=${encodeURIComponent(extension)}` : ''}`
 };

@@ -6,6 +6,7 @@ import { demoCategories, demoChannels, demoEpisodes, demoSeries, demoVod } from 
 import { clearEpg, epgForChannel, epgStatus, initEpg, refreshEpg, scheduleForChannel } from './epg/service.js';
 import { guideStart } from './epg/schedule.js';
 import { initStore, library } from './store.js';
+import { liveSelection } from './liveSelection.js';
 import type { Category, Channel, Favorite, HistoryItem, SeriesItem, VodItem } from './types.js';
 import { APP_VERSION } from './version.js';
 import { clearXtreamCache, streamUrl, validateAccount, xtream } from './xtream/client.js';
@@ -62,7 +63,10 @@ async function series(categoryId?: string): Promise<SeriesItem[]> {
 }
 
 app.get('/health', (_req, res) => res.json({ status: 'ok', version: APP_VERSION }));
-app.get('/api/status', (_req, res) => res.json({ version: APP_VERSION, configured: publicConfig().configured, demoMode: getConfig().demoMode, language: getConfig().language, languageConfigured: languageConfigured(), epg: epgStatus() }));
+app.get('/api/status', (_req, res) => res.json({ version: APP_VERSION, configured: publicConfig().configured, demoMode: getConfig().demoMode, language: getConfig().language, languageConfigured: languageConfigured(), autoplayLive: getConfig().autoplayLive, epg: epgStatus() }));
+app.get('/api/live/selection', asyncRoute(async (_req, res) => {
+  res.json(liveSelection(await live(), library.history(), getConfig().rememberLastChannel));
+}));
 app.get('/api/config', (_req, res) => res.json(publicConfig()));
 app.put('/api/config', asyncRoute(async (req, res) => {
   const update = req.body as Record<string, unknown>;
@@ -173,7 +177,8 @@ app.post('/api/history', asyncRoute(async (req, res) => {
   const item = req.body as HistoryItem;
   if (!['live','movie','series'].includes(item.type) || !item.id || !item.item) throw new Error('Invalid history item.');
   const position = Number(item.position); const duration = Number(item.duration);
-  res.json(await library.watched({ ...item, completed: item.completed === true, position: Number.isFinite(position) ? Math.max(0, position) : 0, duration: Number.isFinite(duration) ? Math.max(0, duration) : 0, watchedAt: Date.now() }));
+  const checkpointAt = Number(item.checkpointAt);
+  res.json(await library.watched({ ...item, checkpointAt: Number.isFinite(checkpointAt) && checkpointAt > 0 ? checkpointAt : undefined, completed: item.completed === true, position: Number.isFinite(position) ? Math.max(0, position) : 0, duration: Number.isFinite(duration) ? Math.max(0, duration) : 0, watchedAt: Date.now() }));
 }));
 
 app.get('/api/play/:kind/:id', asyncRoute(async (req, res) => {

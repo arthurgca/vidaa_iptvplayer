@@ -8,6 +8,35 @@ function element() {
 describe('FocusManager', () => {
   afterEach(() => vi.unstubAllGlobals());
 
+  it('pages within allowed groups and clamps list/grid jumps without activating items', () => {
+    const manager = new FocusManager(); const select = vi.fn();
+    manager.register({ key: 'header', group: 'header', index: 0, onSelect: select, element: element() });
+    for (let index = 0; index < 32; index++) manager.register({ key: `grid:${index}`, group: 'grid', index, columns: 5, orientation: 'grid', onSelect: select, element: element() });
+    manager.page(1, ['grid']); expect(manager.focused).toBe('grid:0');
+    manager.focus('grid:2'); manager.page(1, ['grid']); expect(manager.focused).toBe('grid:27');
+    manager.page(1, ['grid']); expect(manager.focused).toBe('grid:31');
+    expect(manager.page(1, ['grid'])).toBe(false);
+    manager.page(-1, ['grid']); expect(manager.focused).toBe('grid:6');
+    manager.page(-1, ['grid']); expect(manager.focused).toBe('grid:0');
+    expect(manager.page(-1, ['grid'])).toBe(false);
+    expect(manager.page(1, ['missing'])).toBe(false);
+    expect(select).not.toHaveBeenCalled();
+  });
+
+  it('measures the nearest scrollable viewport and preserves the grid column during a page jump', () => {
+    const manager = new FocusManager();
+    const rect = (left: number, top: number) => ({ left, right: left + 100, top, bottom: top + 40, width: 100, height: 40 });
+    const container = { clientHeight: 200, scrollHeight: 2000, scrollWidth: 200, clientWidth: 200, scrollTop: 0, scrollLeft: 0, parentElement: null, getBoundingClientRect: () => ({ ...rect(0, 0), bottom: 200 }) };
+    vi.stubGlobal('window', { innerHeight: 1000, getComputedStyle: () => ({ overflowY: 'auto', overflowX: 'hidden' }) });
+    for (let index = 0; index < 20; index++) {
+      const item = { focus() {}, parentElement: container, getBoundingClientRect: () => rect(index % 2 * 120, Math.floor(index / 2) * 60) } as unknown as HTMLElement;
+      manager.register({ key: String(index), group: 'grid', index, columns: 2, orientation: 'grid', onSelect() {}, element: item });
+    }
+    manager.focus('1'); manager.page(1, ['grid']); expect(manager.focused).toBe('7');
+    manager.page(-1, ['grid']); expect(manager.focused).toBe('1');
+    expect(manager.page(-1, ['grid'])).toBe(false);
+  });
+
   it('moves deterministically through vertical lists and explicit neighbors', () => {
     const manager = new FocusManager();
     manager.register({ key: 'cat:0', group: 'cat', index: 0, orientation: 'vertical', neighbors: { right: 'channel:0' }, onSelect() {}, element: element() });

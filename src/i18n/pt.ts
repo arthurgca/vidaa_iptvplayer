@@ -5,6 +5,7 @@ export const pt: Dictionary = {
   'app.starting': 'Iniciando o VIDAA IPTV…',
   'app.backendUnavailable': 'Servidor indisponível: {error}',
   'app.back': '‹ Voltar',
+  'app.pageNavigation': 'P UP / P DOWN: página anterior / seguinte',
 
   'common.loading': 'Carregando…',
   'common.retry': 'Tentar novamente',
@@ -95,7 +96,7 @@ export const pt: Dictionary = {
   'player.browse.label': 'Navegador de canais',
   'player.browse.title': 'Canais',
   'player.browse.next': 'A seguir · {time} · {title}',
-  'player.browse.hint': '↑ ↓ Navegar · OK Assistir · Voltar Fechar',
+  'player.browse.hint': '↑ ↓ Navegar · P UP / P DOWN Página · OK Assistir · Voltar Fechar',
   'player.timeline.label': 'Posição da reprodução',
   'player.timeline.valueText': '{position} de {duration}',
   'player.timeline.unknown': 'desconhecida',

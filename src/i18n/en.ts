@@ -7,6 +7,7 @@ export const en = {
   'app.starting': 'Starting VIDAA IPTV…',
   'app.backendUnavailable': 'Backend unavailable: {error}',
   'app.back': '‹ Back',
+  'app.pageNavigation': 'P UP / P DOWN: previous / next page',
 
   'common.loading': 'Loading…',
   'common.retry': 'Retry',
@@ -97,7 +98,7 @@ export const en = {
   'player.browse.label': 'Channel browser',
   'player.browse.title': 'Channels',
   'player.browse.next': 'Next · {time} · {title}',
-  'player.browse.hint': '↑ ↓ Browse · OK Watch · Back Close',
+  'player.browse.hint': '↑ ↓ Browse · P UP / P DOWN Page · OK Watch · Back Close',
   'player.timeline.label': 'Playback position',
   'player.timeline.valueText': '{position} of {duration}',
   'player.timeline.unknown': 'unknown',

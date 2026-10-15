@@ -38,6 +38,36 @@ export class FocusManager {
     this.listeners.forEach((listener) => listener(key)); return true;
   }
   select() { this.nodes.get(this.current)?.onSelect(); }
+  /** Jump roughly one visible page within a list, preserving the grid column where possible. */
+  page(direction: -1 | 1, groups: string[]) {
+    const current = this.nodes.get(this.current);
+    const available = [...this.nodes.values()].filter((node) => groups.includes(node.group) && this.inScope(node));
+    const group = current && groups.includes(current.group) ? current.group : groups.find((value) => available.some((node) => node.group === value));
+    const nodes = available.filter((node) => node.group === group).sort((a, b) => a.index - b.index);
+    if (!nodes.length) return false;
+    if (!current || current.group !== group) return this.focus(nodes[0]!.key);
+    const rect = current.element.getBoundingClientRect?.();
+    if (rect && rect.height > 0 && rect.width > 0) {
+      let height = window.innerHeight || rect.height * 5;
+      let container = current.element.parentElement;
+      while (container) {
+        if (container.clientHeight > 0 && /^(auto|scroll)$/.test(window.getComputedStyle(container).overflowY)) {
+          height = container.clientHeight; break;
+        }
+        container = container.parentElement;
+      }
+      const target = rect.top + direction * Math.max(rect.height, height * .9);
+      const candidates = nodes.map((node) => ({ node, rect: node.element.getBoundingClientRect() }))
+        .filter((entry) => entry.rect.height > 0 && direction * (entry.rect.top - rect.top) > 1)
+        .sort((a, b) => (Math.abs(a.rect.top - target) + Math.abs(a.rect.left - rect.left) * .01)
+          - (Math.abs(b.rect.top - target) + Math.abs(b.rect.left - rect.left) * .01));
+      return candidates[0] ? this.focus(candidates[0].node.key) : false;
+    }
+    const index = nodes.findIndex((node) => node.key === current.key);
+    const step = (current.orientation === 'grid' ? current.columns || 1 : 1) * 5;
+    const target = Math.max(0, Math.min(nodes.length - 1, index + direction * step));
+    return target !== index && this.focus(nodes[target]!.key);
+  }
   move(direction: Direction) {
     const current = this.nodes.get(this.current);
     if (!current) return this.focusFirst();
