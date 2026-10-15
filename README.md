@@ -1,5 +1,7 @@
 # VIDAA IPTV
 
+> **AI disclaimer:** This project was created using artificial intelligence (AI).
+
 A lightweight, self-hosted Xtream IPTV player for Hisense and Toshiba televisions running VIDAA OS. It provides Live TV with EPG, movies, series, favorites, playback history, and a simple 10-foot interface controlled entirely by a TV remote.
 
 There are no application accounts, cloud services, transcoders, Redis, or external databases. The TV plays provider media directly; Docker handles credentials, Xtream metadata, XMLTV parsing, caching, and the static UI.
