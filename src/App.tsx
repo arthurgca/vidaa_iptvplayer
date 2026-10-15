@@ -47,19 +47,24 @@ function AppRouter({ language, setLanguage }: RouterProps) {
   const recentRequest = useRef(0);
   const navigationRequest = useRef(0);
   const playingLiveChannel = useRef<string>();
+  const restoreTimer = useRef<number>();
 
-  const restoreSoon = (key?: string) => window.setTimeout(() => { if (!key || !focus.focus(key)) focus.focusFirst(); }, 50);
+  const restoreSoon = (key?: string) => {
+    clearTimeout(restoreTimer.current);
+    restoreTimer.current = window.setTimeout(() => { if (!key || !focus.focus(key)) focus.focusFirst(); }, 50);
+    return restoreTimer.current;
+  };
+  useEffect(() => () => clearTimeout(restoreTimer.current), []);
   const push = (name: RouteName, data?: unknown, restoreFocus?: string) => { navigationRequest.current++; const scroll = captureBrowseScroll(); setRoutes((stack) => [...stack.slice(0,-1), { ...stack[stack.length-1]!, restoreFocus: focus.focused, scroll }, { name, data, restoreFocus }]); };
   const replaceHome = () => { navigationRequest.current++; setRoutes([{ name: 'home' }]); restoreSoon('home:live'); };
   const back = () => {
     navigationRequest.current++;
     if (routes.length <= 1) { try { window.close(); } catch { /* browser preview */ } return; }
     const previous = routes[routes.length - 2];
-    const restoreFocus = current?.name === 'player' && previous?.name === 'live' && playingLiveChannel.current
-      ? `live:channel:${playingLiveChannel.current}` : previous?.restoreFocus;
-    // Channel surfing can change the return target; an old scroll offset must not hide it.
+    const restoreFocus = previous?.restoreFocus;
+    // Live browsing context is independent of channels surfed inside the player.
     setRoutes((stack) => stack.slice(0, -1).map((route, index) => index === stack.length - 2 ? { ...route, restoreFocus, scroll: route.restoreFocus === restoreFocus ? route.scroll : undefined } : route));
-    restoreSoon(restoreFocus);
+    if (previous?.name !== 'live') restoreSoon(restoreFocus);
   };
   useEffect(() => {
     let active = true;
@@ -71,6 +76,7 @@ function AppRouter({ language, setLanguage }: RouterProps) {
       if (!active) return;
       if (selection?.channel) {
         const channel = selection.channel;
+        playingLiveChannel.current = channel.id;
         setCatalog('live', { ...emptyCatalogQuery(), offset: selection.offset });
         setRoutes([{ name: 'home', restoreFocus: 'home:live' }, { name: 'live', restoreFocus: `live:channel:${channel.id}` }, {
           name: 'player', data: { type: 'live', id: channel.id, item: channel, extension: channel.extension, channels: selection.channels } satisfies Playable
@@ -101,7 +107,11 @@ function AppRouter({ language, setLanguage }: RouterProps) {
     if (action === 'NAV_LEFT') focus.move('left');
     if (action === 'NAV_RIGHT') focus.move('right');
   }), [current?.name, routes.length]);
-  useEffect(() => { if (current?.name !== 'player' && current?.name !== 'movies') restoreSoon(current?.restoreFocus); }, [current?.name]);
+  useEffect(() => {
+    if (current?.name === 'player' || current?.name === 'movies' || current?.name === 'live') return;
+    const timer = restoreSoon(current?.restoreFocus);
+    return () => clearTimeout(timer);
+  }, [current?.name]);
 
   if (startupError) return <ErrorState error={t('app.backendUnavailable', { error: startupError })} retry={() => location.reload()} />;
   if (!current) return <Spinner label={t('app.starting')} />;

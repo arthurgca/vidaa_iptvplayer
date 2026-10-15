@@ -45,10 +45,15 @@ async function categories(kind: 'live' | 'vod' | 'series'): Promise<Category[]> 
   return normalizeCategories(await xtream(actions[kind]));
 }
 
+const liveCatalogs = new WeakMap<object, Channel[]>();
 async function live(categoryId?: string): Promise<Channel[]> {
   if (library.contentCleared()) return [];
   if (getConfig().demoMode) return categoryId ? demoChannels.filter((item) => item.categoryId === categoryId) : demoChannels;
-  return normalizeChannels(await xtream('get_live_streams', categoryId ? { category_id: categoryId } : {}));
+  const raw = await xtream('get_live_streams');
+  if (!Array.isArray(raw)) throw new Error('The provider returned invalid live catalog data.');
+  let items = liveCatalogs.get(raw);
+  if (!items) { items = normalizeChannels(raw); liveCatalogs.set(raw, items); }
+  return categoryId ? items.filter(item => item.categoryId === categoryId) : items;
 }
 
 async function vod(categoryId?: string): Promise<VodItem[]> {
@@ -119,6 +124,8 @@ app.get('/api/xtream/:kind/live', asyncRoute(async (req, res) => {
 }));
 app.get('/api/xtream/live-categories', asyncRoute(async (_req, res) => res.json(await categories('live'))));
 app.get('/api/xtream/live-streams', asyncRoute(async (req, res) => res.json(page(await live(stringParam(req.query.category_id) || undefined), req))));
+// Full normalized catalog for local filtering/virtualization. No provider pagination.
+app.get('/api/xtream/live/catalog', asyncRoute(async (_req, res) => res.json(await live())));
 app.get('/api/xtream/vod/categories', asyncRoute(async (_req, res) => res.json(await categories('vod'))));
 app.get('/api/xtream/vod', asyncRoute(async (req, res) => res.json(page(await vod(stringParam(req.query.category_id) || undefined), req))));
 // Local windows over one cached Xtream response; never forward offset/limit to the provider.

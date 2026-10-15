@@ -1,4 +1,5 @@
 import type { Language } from '../i18n';
+import { clearEpgCache } from './epg';
 import type { AppConfig, Category, Channel, EpgNow, Favorite, HistoryItem, MediaKind, MovieSort, Page, SeriesItem, VodItem, Episode, GuidePage } from '../types';
 
 export interface AppStatus { version: string; configured: boolean; demoMode: boolean; language: Language; languageConfigured: boolean; autoplayLive: boolean }
@@ -20,8 +21,24 @@ const query = (values: Record<string, string | number | undefined>) => {
 
 // Six small windows, never the entire catalog on the television. Share in-flight reads.
 const movieWindows = new Map<string, { expires: number; value: Promise<Page<VodItem>> }>();
-export function clearMovieWindows() { movieWindows.clear(); }
-async function catalogMutation<T>(operation: Promise<T>) { const result = await operation; clearMovieWindows(); return result; }
+let liveCatalog: { expires: number; value: Promise<Channel[]> } | undefined;
+let liveCategories: { expires: number; value: Promise<Category[]> } | undefined;
+export function clearMovieWindows() { movieWindows.clear(); liveCatalog = undefined; liveCategories = undefined; }
+function fullLiveCatalog() {
+  if (liveCatalog && liveCatalog.expires > Date.now()) return liveCatalog.value;
+  const entry = { expires: Date.now() + 5 * 60_000, value: request<Channel[]>('/api/xtream/live/catalog') };
+  liveCatalog = entry;
+  void entry.value.catch(() => { if (liveCatalog === entry) liveCatalog = undefined; });
+  return entry.value;
+}
+function getLiveCategories() {
+  if (liveCategories && liveCategories.expires > Date.now()) return liveCategories.value;
+  const entry = { expires: Date.now() + 5 * 60_000, value: request<Category[]>('/api/xtream/categories/live') };
+  liveCategories = entry;
+  void entry.value.catch(() => { if (liveCategories === entry) liveCategories = undefined; });
+  return entry.value;
+}
+async function catalogMutation<T>(operation: Promise<T>) { const result = await operation; clearMovieWindows(); clearEpgCache(); return result; }
 function movieWindow(categoryId = '', offset = 0, search = '', anchor = '', sort: MovieSort = 'added-desc') {
   const key = query({ category_id: categoryId, offset, limit: 120, search, anchor, sort });
   const hit = movieWindows.get(key);
@@ -41,7 +58,8 @@ export const api = {
   refresh: () => catalogMutation(request<{ ok: boolean }>('/api/refresh', { method: 'POST' })),
   clearData: () => catalogMutation(request<AppConfig>('/api/data', { method: 'DELETE' })),
   clearAllData: () => catalogMutation(request<AppConfig>('/api/data/all', { method: 'DELETE' })),
-  liveCategories: () => request<Category[]>('/api/xtream/categories/live'),
+  liveCategories: getLiveCategories,
+  liveCatalog: fullLiveCatalog,
   liveSelection: () => request<LiveSelection>('/api/live/selection'),
   channels: (categoryId?: string, offset = 0, search = '') => request<Page<Channel>>(`/api/xtream/streams/live?${query({ category_id: categoryId, offset, limit: LIVE_PAGE_SIZE, search })}`),
   vodCategories: () => request<Category[]>('/api/xtream/vod/categories'),

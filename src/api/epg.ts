@@ -12,16 +12,22 @@ export function peekEpg(channelId: string) { return entries.get(channelId)?.valu
 
 export function isEpgFresh(channelId: string, now = Date.now()) {
   const entry = entries.get(channelId);
-  return Boolean(entry && !entry.pending && now - entry.fetchedAt < EPG_TTL_MS);
+  const boundary = entry?.value?.current?.end || entry?.value?.next?.start || Infinity;
+  return Boolean(entry && !entry.pending && now - entry.fetchedAt < (entry.value?.status === 'error' || !entry.value ? 15_000 : EPG_TTL_MS) && now < boundary);
 }
 
 export function loadEpg(channelId: string): Promise<EpgNow | undefined> {
   const entry = entries.get(channelId);
   if (entry?.pending) return entry.pending;
   if (entry && isEpgFresh(channelId)) return Promise.resolve(entry.value);
-  const settle = (value: EpgNow | undefined) => { entries.set(channelId, { value, fetchedAt: Date.now() }); return value; };
+  const settle = (value: EpgNow | undefined) => {
+    if (entries.get(channelId)?.pending !== pending) return value;
+    entries.delete(channelId); entries.set(channelId, { value, fetchedAt: Date.now() });
+    return value;
+  };
   const pending = api.epg(channelId).then(settle, () => settle(undefined));
   entries.set(channelId, { value: entry?.value, fetchedAt: entry?.fetchedAt || 0, pending });
+  if (entries.size > 64) entries.delete(entries.keys().next().value!);
   return pending;
 }
 

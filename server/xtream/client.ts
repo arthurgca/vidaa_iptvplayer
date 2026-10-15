@@ -56,7 +56,7 @@ export async function xtream(action?: string, params: Record<string, string> = {
     if (!response.ok) throw new Error(`Provider returned HTTP ${response.status}.`);
     const body = await response.json();
     // Xtream may report expired authentication as HTTP 200 with an object instead of a list.
-    if ((action === 'get_vod_streams' || action === 'get_vod_categories') && !Array.isArray(body)) throw new Error('The provider returned invalid movie catalog data.');
+    if (['get_vod_streams', 'get_vod_categories', 'get_live_streams', 'get_live_categories'].includes(action || '') && !Array.isArray(body)) throw new Error(`The provider returned invalid ${action?.includes('vod') ? 'movie' : 'live'} catalog data.`);
     if (!candidate && startedInGeneration === cacheGeneration) cache.set(key, { value: body, expires: Date.now() + (TTL[action || ''] || 60_000) });
     return body;
   } catch (error) {

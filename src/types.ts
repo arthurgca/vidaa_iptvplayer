@@ -8,7 +8,7 @@ export interface VodItem { id: string; name: string; categoryId: string; poster?
 export interface SeriesItem extends Omit<VodItem, 'extension'> {}
 export interface Episode { id: string; name: string; season: number; episode: number; extension?: string; duration?: string; description?: string }
 export interface Program { channelId: string; title: string; description?: string; start: number; end: number }
-export interface EpgNow { current?: Program; next?: Program; progress: number }
+export interface EpgNow { current?: Program; next?: Program; progress: number; status?: 'current' | 'empty' | 'unavailable' | 'error' }
 export interface Favorite { type: MediaKind; id: string; item: Channel | VodItem | SeriesItem; addedAt: number }
 export interface HistoryItem { type: MediaKind; id: string; item: Channel | VodItem | Episode; position: number; duration: number; watchedAt: number; checkpointAt?: number; completed?: boolean; series?: SeriesItem }
 export interface GuideRow { channel: Channel; programs: Program[] }

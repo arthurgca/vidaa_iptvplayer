@@ -10,7 +10,7 @@ import type { Channel } from '../src/types';
 vi.mock('../src/player/Player', () => ({
   Player: vi.fn(({ media, close, liveChannelChanged }: { media: Playable; close: () => void; liveChannelChanged?: (channel: Channel) => void }) => {
     liveChannelChanged?.(media.item as Channel);
-    return <main className="test-player"><span>{media.id}</span><button onClick={close}>Close playback</button></main>;
+    return <main className="test-player"><span>{media.id}</span><button onClick={close}>Close playback</button><button className="test-surf" onClick={() => liveChannelChanged?.({ id: '95', name: 'Channel 95', categoryId: 'news' })}>Surf</button></main>;
   })
 }));
 
@@ -30,6 +30,7 @@ beforeEach(() => {
   vi.spyOn(api, 'liveSelection').mockResolvedValue(selection);
   vi.spyOn(api, 'liveCategories').mockResolvedValue([]);
   vi.spyOn(api, 'channels').mockImplementation(async (_category, offset = 0) => ({ items: channels.slice(offset, offset + 20), total: channels.length, offset, limit: 20 }));
+  vi.spyOn(api, 'liveCatalog').mockResolvedValue(channels);
   vi.spyOn(api, 'epg').mockResolvedValue({ progress: 0 });
   vi.spyOn(api, 'favorites').mockResolvedValue([]);
 });
@@ -52,7 +53,7 @@ describe('playback preference navigation', () => {
     const calls = vi.mocked(Player).mock.calls;
     expect(calls[calls.length - 1]?.[0].media).toMatchObject({ type: 'live', id: '94', channels: selection.channels });
     act(() => container.querySelector<HTMLButtonElement>('.test-player button')!.click()); await settle(); await focusSettled();
-    expect(api.channels).toHaveBeenLastCalledWith(undefined, 80, '');
+    expect(api.liveCatalog).toHaveBeenCalledTimes(1);
     expect(document.activeElement?.textContent).toContain('Channel 94');
     await back();
     expect(container.querySelector('.home-screen')).not.toBeNull();
@@ -62,7 +63,7 @@ describe('playback preference navigation', () => {
   it('restores the remembered channel for manual Live TV entry without starting playback', async () => {
     await mount();
     act(() => container.querySelector<HTMLButtonElement>('.home-card')!.click()); await settle(); await settle(); await focusSettled();
-    expect(api.channels).toHaveBeenLastCalledWith(undefined, 80, '');
+    expect(api.liveCatalog).toHaveBeenCalledTimes(1);
     expect(document.activeElement?.textContent).toContain('Channel 94');
     expect(Player).not.toHaveBeenCalled();
   });
@@ -87,5 +88,26 @@ describe('playback preference navigation', () => {
     expect(container.querySelector('.channel-list')).toBeNull();
     expect(api.channels).not.toHaveBeenCalled();
     expect(container.textContent).toContain('Recently Watched');
+  });
+  it('restores the category, search, original highlighted ID and scroll independently of player surfing', async () => {
+    vi.mocked(api.liveCategories).mockResolvedValue([{ id: 'news', name: 'News' }]);
+    await mount();
+    act(() => container.querySelector<HTMLButtonElement>('.home-card')!.click()); await settle(); await settle();
+    const press = async (key: string) => { act(() => { document.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true })); }); await settle(); };
+    await press('ArrowLeft'); await settle();
+    act(() => [...container.querySelectorAll('button')].find(node => node.textContent === 'News')!.click()); await settle();
+    act(() => container.querySelector<HTMLDivElement>('[data-focus-proxy]')!.focus());
+    act(() => { const input = container.querySelector('input')!; input.value = 'Channel 9'; input.dispatchEvent(new Event('input', { bubbles: true })); }); await settle();
+    // Enter from the search control returns to its result before OK tunes.
+    act(() => container.querySelector<HTMLDivElement>('[data-focus-proxy]')!.focus()); await press('ArrowDown');
+    expect(document.activeElement?.textContent).toContain('Channel 94');
+    const list = container.querySelector<HTMLElement>('.channel-list')!; list.scrollTop = 100;
+    await press('Enter'); act(() => container.querySelector<HTMLButtonElement>('.test-surf')!.click()); await settle();
+    act(() => container.querySelector<HTMLButtonElement>('.test-player button')!.click()); await settle(); await focusSettled();
+    expect(document.activeElement?.textContent).toContain('Channel 94');
+    expect(container.querySelector<HTMLInputElement>('input')?.value).toBe('Channel 9');
+    expect(container.querySelector('.live-category-control strong')?.textContent).toBe('News');
+    expect(container.querySelector<HTMLElement>('.channel-list')!.scrollTop).toBe(100);
+    expect(container.querySelector('.tuned-badge')?.closest('button')?.textContent).toContain('Channel 95');
   });
 });

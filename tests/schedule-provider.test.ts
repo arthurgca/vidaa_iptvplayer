@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { scheduleForChannel } from '../server/epg/service';
+import { epgForChannel, scheduleForChannel } from '../server/epg/service';
 import { xtream } from '../server/xtream/client';
 
 vi.mock('../server/config', () => ({ dataDir: '.', getConfig: () => ({ demoMode: false }) }));
@@ -32,5 +32,16 @@ describe('provider guide schedules', () => {
     expect(await scheduleForChannel(channel, 100_000, 300_000)).toEqual([]);
     vi.mocked(xtream).mockRejectedValue(new Error('Offline'));
     expect(await scheduleForChannel(channel, 100_000, 300_000)).toEqual([]);
+  });
+  it('distinguishes retrieval failure, unavailable data, future-only schedules and exact now/next boundaries', async () => {
+    vi.mocked(xtream).mockRejectedValueOnce(new Error('Offline'));
+    expect(await epgForChannel(channel)).toMatchObject({ status: 'error', progress: 0 });
+    vi.mocked(xtream).mockResolvedValueOnce({ epg_listings: [] });
+    expect(await epgForChannel(channel)).toMatchObject({ status: 'unavailable', progress: 0 });
+    const now = Math.floor(Date.now() / 1000);
+    vi.mocked(xtream).mockResolvedValueOnce({ epg_listings: [{ ...entry, start_timestamp: now + 60, stop_timestamp: now + 120 }] });
+    expect(await epgForChannel(channel)).toMatchObject({ status: 'empty', next: { start: (now + 60) * 1000 } });
+    vi.mocked(xtream).mockResolvedValueOnce({ epg_listings: [{ ...entry, start_timestamp: now - 60, stop_timestamp: now }, { ...entry, start_timestamp: now, stop_timestamp: now + 60 }] });
+    expect(await epgForChannel(channel)).toMatchObject({ status: 'current', current: { start: now * 1000 } });
   });
 });

@@ -14,13 +14,13 @@ export function normalizeCategories(input: unknown): Category[] {
 
 export function normalizeChannels(input: unknown): Channel[] {
   if (!Array.isArray(input)) return [];
-  return input.map((raw) => raw as UnknownRecord).map((item) => ({
+  return input.map((raw) => raw as UnknownRecord).map((item, index) => ({
     id: text(item.stream_id ?? item.id),
     name: text(item.name) || 'Unnamed channel',
     categoryId: text(item.category_id),
     logo: optional(item.stream_icon ?? item.logo),
-    epgChannelId: optional(item.epg_channel_id ?? item.tv_archive_id),
-    number: number(item.num ?? item.stream_id),
+    epgChannelId: optional(item.epg_channel_id),
+    number: number(item.num) || index + 1,
     extension: optional(item.container_extension) || 'ts'
   })).filter((item) => item.id);
 }

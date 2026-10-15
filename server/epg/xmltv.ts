@@ -9,10 +9,12 @@ export function decodeXml(value: string): string {
 }
 
 export function parseXmltvDate(raw: string): number {
-  const match = raw.trim().match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})?\s*([+-])(\d{2})(\d{2})?/);
-  if (!match) return Date.parse(raw) || 0;
-  const [, y, mo, d, h, mi, s = '00', sign, oh, om = '00'] = match;
+  const match = raw.trim().match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})?(?:\s*([+-])(\d{2})(\d{2})?)?$/);
+  if (!match) return /(?:Z|[+-]\d{2}:?\d{2})$/i.test(raw) ? Date.parse(raw) || 0 : 0;
+  const [, y, mo, d, h, mi, s = '00', sign = '+', oh = '00', om = '00'] = match;
   const utc = Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi), Number(s));
+  const date = new Date(utc);
+  if (date.getUTCFullYear() !== Number(y) || date.getUTCMonth() + 1 !== Number(mo) || date.getUTCDate() !== Number(d) || Number(h) > 23 || Number(mi) > 59 || Number(s) > 59 || Number(oh) > 23 || Number(om) > 59) return 0;
   const offset = (Number(oh) * 60 + Number(om)) * 60_000;
   return utc - (sign === '+' ? offset : -offset);
 }
@@ -47,7 +49,7 @@ export function parseXmltv(xml: string, windowStart = Date.now() - 6 * 3600_000,
   while ((match = programmeRegex.exec(xml))) {
     const start = parseXmltvDate(attr(match[1]!, 'start'));
     const end = parseXmltvDate(attr(match[1]!, 'stop'));
-    if (!start || !end || end < windowStart || start > windowEnd) continue;
+    if (!start || !end || end <= start || end < windowStart || start > windowEnd) continue;
     const channelId = attr(match[1]!, 'channel');
     const title = content(match[2]!, 'title');
     if (channelId && title) programs.push({ channelId, title, description: content(match[2]!, 'desc') || undefined, start, end });

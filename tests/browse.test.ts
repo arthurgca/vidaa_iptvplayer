@@ -18,7 +18,7 @@ describe('browse window', () => {
 
 describe('EPG cache', () => {
   it('fetches a channel once per TTL and shares an in-flight request', async () => {
-    const epg = vi.spyOn(api, 'epg').mockResolvedValue(window(0, 100));
+    const epg = vi.spyOn(api, 'epg').mockResolvedValue(window(Date.now() - 1000, Date.now() + 120_000));
     await Promise.all([loadEpg('cnn'), loadEpg('cnn')]);
     await loadEpg('cnn');
     expect(epg).toHaveBeenCalledTimes(1);
@@ -36,6 +36,17 @@ describe('EPG cache', () => {
     clearEpgCache();
     await loadEpg('bbc');
     expect(peekEpg('bbc')?.current?.title).toBe('Now');
+  });
+  it('expires at a programme boundary, bounds the cache and ignores completions after a clear', async () => {
+    const now = Date.now();
+    vi.spyOn(api, 'epg').mockResolvedValue(window(now - 100, now + 1000));
+    await loadEpg('edge'); expect(isEpgFresh('edge', now + 1001)).toBe(false);
+    for (let i = 0; i < 100; i++) await loadEpg(String(i));
+    expect(peekEpg('edge')).toBeUndefined(); expect(peekEpg('0')).toBeUndefined(); expect(peekEpg('99')).toBeDefined();
+    let resolve!: (value: ReturnType<typeof window>) => void;
+    vi.mocked(api.epg).mockImplementationOnce(() => new Promise(done => { resolve = done; }));
+    const pending = loadEpg('cleared'); clearEpgCache(); resolve(window(now - 100, now + 1000)); await pending;
+    expect(peekEpg('cleared')).toBeUndefined();
   });
 });
 
