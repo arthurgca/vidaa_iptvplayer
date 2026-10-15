@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import type { Page } from '../types';
+import type { MovieSort, Page } from '../types';
 
-export interface CatalogQuery { category: string; search: string; offset: number }
+export interface CatalogQuery { category: string; search: string; offset: number; sort?: MovieSort }
 export const emptyCatalogQuery = (): CatalogQuery => ({ category: '', search: '', offset: 0 });
 export const filterCatalog = (query: CatalogQuery, filter: Partial<Pick<CatalogQuery, 'category' | 'search'>>): CatalogQuery =>
   ({ ...query, ...filter, offset: 0 });

@@ -47,9 +47,10 @@ interface FocusableProps {
   focusKey: string; group: string; index: number; columns?: number; orientation?: FocusNode['orientation'];
   neighbors?: Partial<Record<Direction, NeighborTarget>>; onSelect: () => void; className?: string; children: preact.ComponentChildren;
   disabled?: boolean; title?: string; onFocus?: () => void;
+  hoverFocus?: boolean;
 }
 
-export function Focusable({ focusKey, group, index, columns, orientation, neighbors, onSelect, className = '', children, disabled, title, onFocus }: FocusableProps) {
+export function Focusable({ focusKey, group, index, columns, orientation, neighbors, onSelect, className = '', children, disabled, title, onFocus, hoverFocus = true }: FocusableProps) {
   const focus = useFocusManager(); const ref = useRef<HTMLButtonElement>(null);
   const selectRef = useRef(onSelect); selectRef.current = onSelect;
   useEffect(() => {
@@ -58,5 +59,5 @@ export function Focusable({ focusKey, group, index, columns, orientation, neighb
     focus.register({ key: focusKey, group, index, columns, orientation, neighbors, onSelect: () => selectRef.current(), element });
     return () => focus.unregister(focusKey, element);
   }, [focus, focusKey, group, index, columns, orientation, disabled, JSON.stringify(neighbors)]);
-  return <button ref={ref} type="button" tabIndex={-1} className={`focusable ${className}`} onClick={onSelect} onFocus={onFocus} onMouseEnter={() => focus.focus(focusKey)} disabled={disabled} title={title}>{children}</button>;
+  return <button ref={ref} type="button" tabIndex={-1} className={`focusable ${className}`} onClick={onSelect} onFocus={onFocus} onMouseEnter={hoverFocus ? () => focus.focus(focusKey) : undefined} disabled={disabled} title={title}>{children}</button>;
 }

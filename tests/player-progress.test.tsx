@@ -38,6 +38,16 @@ afterEach(() => {
 });
 
 describe('watch progress checkpoints', () => {
+  it('resumes the exact episode and preserves automatic next-episode playback across seasons', () => {
+    localStorage.removeItem('vidaa-auto-next');
+    const episodes = [{ id: 'last', name: 'Finale', season: 1, episode: 8 }, { id: 'next', name: 'Return', season: 2, episode: 1 }];
+    mount({ type: 'series', id: 'last', item: episodes[0]!, series: { id: 'show', name: 'Show', categoryId: '' }, resumeAt: 120, episodes });
+    event('loadedmetadata'); event('playing');
+    expect(video.currentTime).toBe(120);
+    video.currentTime = 300; event('ended');
+    expect(api.watched).toHaveBeenCalledWith(expect.objectContaining({ type: 'series', id: 'last', completed: true }), true);
+    expect(video.src).toContain('/api/play/series/next');
+  });
   it('jumps six browse rows with page buttons without tuning until OK', () => {
     const channels = Array.from({ length: 14 }, (_, index) => ({ id: String(index), name: `Channel ${index}`, categoryId: '' }));
     mount({ type: 'live', id: '0', item: channels[0]!, channels }); event('playing');

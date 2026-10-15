@@ -7,6 +7,7 @@ const allowedActions = new Set([
 
 interface CacheEntry { expires: number; value: unknown }
 const cache = new Map<string, CacheEntry>();
+const pending = new Map<string, Promise<unknown>>();
 let cacheGeneration = 0;
 const TTL: Record<string, number> = {
   get_live_categories: 12 * 3600_000, get_live_streams: 3600_000,
@@ -45,22 +46,31 @@ export async function xtream(action?: string, params: Record<string, string> = {
   const key = `${url.origin}${url.pathname}?action=${action || ''}&${Object.entries(params).sort().map(([k,v]) => `${k}=${v}`).join('&')}`;
   const hit = cache.get(key);
   if (!candidate && hit && hit.expires > Date.now()) return hit.value;
+  if (!candidate && pending.has(key)) return pending.get(key)!;
   const startedInGeneration = cacheGeneration;
+  const task = (async () => {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15_000);
   try {
     const response = await fetch(url, { signal: controller.signal, headers: { accept: 'application/json', 'user-agent': 'VIDAA-IPTV/1.0' } });
     if (!response.ok) throw new Error(`Provider returned HTTP ${response.status}.`);
     const body = await response.json();
+    // Xtream may report expired authentication as HTTP 200 with an object instead of a list.
+    if ((action === 'get_vod_streams' || action === 'get_vod_categories') && !Array.isArray(body)) throw new Error('The provider returned invalid movie catalog data.');
     if (!candidate && startedInGeneration === cacheGeneration) cache.set(key, { value: body, expires: Date.now() + (TTL[action || ''] || 60_000) });
     return body;
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') throw new Error('The IPTV provider timed out.');
     throw error;
   } finally { clearTimeout(timeout); }
+  })();
+  if (candidate) return task;
+  pending.set(key, task);
+  try { return await task; }
+  finally { if (pending.get(key) === task) pending.delete(key); }
 }
 
-export function clearXtreamCache() { cacheGeneration += 1; cache.clear(); }
+export function clearXtreamCache() { cacheGeneration += 1; cache.clear(); pending.clear(); }
 
 export function validateAccount(body: unknown): boolean {
   const root = body as Record<string, unknown> | null;

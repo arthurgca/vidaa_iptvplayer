@@ -336,3 +336,103 @@ div.poster { min-height: 8rem }
 .guide-description { flex: none; height: 4.5rem; overflow-y: auto; padding: .5rem 0; color: var(--text-dim); font-size: .85rem }
 .guide-description p { margin: .4rem 0 }
 .guide-toolbar button:disabled, .library-row-actions button:disabled { opacity: .4; cursor: default }
+
+/* Media library: bounded shelves, with static geometry for remote navigation. */
+.library-browser, .live-browser { background: radial-gradient(ellipse at 80% 0, #182333 0, #090d14 62%) }
+.library-brand { margin-bottom: .8rem; align-items: center }
+.wordmark { color: #f4f7fb; font-size: 1.45rem; font-weight: 900; letter-spacing: .11em }
+.wordmark::before { content: ''; display: inline-block; width: .25rem; height: 1.1rem; margin-right: .65rem; background: #ee6259 }
+.wordmark > span { color: #a6b6c7; font-size: .75rem; font-weight: 600; letter-spacing: .05em }
+.brand-caption { margin-left: 1rem; color: var(--text-dim); font-size: .7rem; letter-spacing: .2em }
+.home-screen .home-grid { display: flex; flex: none; gap: .45rem; padding: .5rem .3rem .7rem; border-bottom: var(--hairline) solid var(--line) }
+.home-screen .home-card { display: block; flex: none; padding: .6rem 1rem; background: transparent; border-color: transparent; border-radius: .35rem }
+.home-screen .home-card strong { font-size: 1.05rem; line-height: 1.3; margin: 0 }
+.home-screen .home-card:focus { background: var(--surface-3); border-color: var(--focus); transform: none }
+.browse-intro { flex: none; padding: 1rem .3rem .8rem; height: 8rem }
+.browse-intro .eyebrow { font-size: .7rem; letter-spacing: .18em; margin-bottom: .35rem }
+.browse-intro h1 { font-size: 1.8rem; line-height: 1.15; max-width: 64rem; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden }
+.browse-intro p { color: var(--text-dim); margin: .4rem 0 0; font-size: .95rem; overflow: hidden; white-space: nowrap; text-overflow: ellipsis }
+.browse-warning { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .3rem .6rem; color: #ffcb99; font-size: .9rem }
+.browse-warning button { padding: .4rem 1rem }
+.media-rows.poster-grid { display: block; flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: .2rem .2rem .5rem; scroll-behavior: auto }
+.media-row { margin: 0 0 .9rem; min-width: 0 }
+.row-heading { display: flex; align-items: baseline; gap: .8rem; padding: .25rem .6rem .1rem }
+.row-heading h2 { color: #e9eef4; font-size: 1.15rem; line-height: 1.4 }
+.row-heading > span { color: var(--text-dim); font-size: .8rem; font-variant-numeric: tabular-nums }
+.artwork-track { display: flex; align-items: flex-start; gap: .85rem; overflow-x: auto; overflow-y: hidden; padding: .65rem .6rem .75rem; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent }
+.artwork-card.poster-card { display: block; flex: 0 0 10.6rem; width: 10.6rem; padding: 0; border-radius: .5rem; background: #192331; border-width: .12rem }
+.artwork-frame { position: relative; width: 100%; height: 15.6rem; overflow: hidden; border-radius: .4rem; background: linear-gradient(145deg, #253b50, #111a27) }
+.artwork-card .poster { width: 100%; height: 100%; aspect-ratio: auto; object-fit: cover; border-radius: 0; margin: 0 }
+.artwork-card div.image-fallback { color: #97b2cd; font-size: 3rem; padding-bottom: 3rem; background: linear-gradient(145deg, #253b50, #111a27) }
+.artwork-caption { position: absolute; bottom: 0; left: 0; right: 0; padding: 2.5rem .7rem .7rem; background: linear-gradient(transparent, rgba(4,8,14,.94) 42%) }
+.artwork-caption strong { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; white-space: normal; font-size: 1rem; line-height: 1.25 }
+.artwork-caption small { font-size: .85rem; margin-top: .35rem; color: #c8d5e1 }
+.artwork-card:focus { transform: none; outline: .22rem solid #e9f9ff; outline-offset: .15rem; box-shadow: 0 0 0 .45rem rgba(79,210,255,.25); border-color: var(--focus) }
+.artwork-card:focus .artwork-caption strong { color: #fff }
+.resume-card.poster-card { flex-basis: 19rem; width: 19rem }
+.resume-card .artwork-frame { height: 10.8rem }
+.resume-card .poster { object-fit: contain; background: #101822 }
+.resume-card .progress { height: .25rem; margin: 0; border-radius: 0 }
+.resume-glyph { position: absolute; top: .7rem; left: .7rem; background: rgba(4,8,14,.85); color: white; padding: .4rem .65rem; border-radius: 50%; font-size: .85rem }
+.home-screen .key-hint { justify-content: flex-start; padding-top: .6rem; padding-left: .6rem; color: #a6b6c7; font-size: .8rem }
+.library-browser .media-layout { background: rgba(16,23,34,.7); border-radius: .55rem }
+.library-browser .media-panel { padding: .8rem; overflow: hidden }
+.selection-summary { flex: none; min-height: 5.4rem; max-height: 7rem; padding: .2rem .65rem .6rem; border-bottom: var(--hairline) solid var(--line); margin-bottom: .4rem; overflow: hidden }
+.selection-summary > strong { font-size: 1.35rem; line-height: 1.25; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden }
+.selection-summary > span { display: block; color: var(--focus); font-size: .9rem; margin-top: .2rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.selection-summary p { color: var(--text-dim); font-size: .9rem; line-height: 1.35; margin: .3rem 0 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis }
+.library-browser .category-list .focusable, .live-browser .category-list .focusable { font-size: 1rem }
+.live-browser .live-layout { grid-template-columns: 19% 45% 36%; border-radius: .55rem; background: #101722 }
+.live-browser .epg-panel { background: linear-gradient(155deg, #1b2b3f, #121c29) }
+.live-browser .epg-logo { width: 7rem; height: 3.8rem; margin-bottom: .8rem }
+.live-browser .epg-panel h2 { font-size: 1.4rem; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden }
+.live-browser .epg-program strong { font-size: 1.25rem; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden }
+.live-browser .epg-program small { font-size: 1rem }
+.live-browser .epg-panel p { font-size: 1rem }
+.live-browser .up-next { margin-top: .8rem; padding-top: .8rem }
+.live-browser .up-next strong { font-size: 1.05rem; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden }
+.live-browser .channel-row:focus { transform: none; background: #293d53; border-color: var(--focus) }
+.channel-star { color: #f4ca80 }
+.tuned-badge { display: flex; flex-direction: column; align-items: center; gap: .2rem; color: #75e8b1; font-size: .85rem; flex: none }
+.tuned-badge small { max-width: 4.3rem; font-size: .6rem; text-align: center; line-height: 1.2 }
+@media (prefers-reduced-motion: reduce) { .focusable { transition: none } }
+.logo-card .poster { object-fit: contain }
+
+/* Movies: one vertical viewport; only visible rows and one buffer row on either side mount. */
+.movies-browser { position: relative; background: radial-gradient(ellipse at 75% 0%, #142237, #070a10 65%) }
+.movies-background { display: flex; flex: 1; flex-direction: column; min-height: 0 }
+.movies-background[aria-hidden="true"] { pointer-events: none }
+.movies-browser .section-header { align-items: center; gap: 1.5rem; margin-bottom: .8rem }
+.movies-browser h1 { font-size: 2.1rem }
+.movies-category-control { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .15rem .6rem; width: 20.5rem; min-width: 0; margin-left: auto; padding: .65rem .8rem; background: #152132; border-color: #34465a }
+.movies-sort-control { width: 15rem; margin-left: 0; flex: none }
+.movies-category-control small { grid-column: 1; color: var(--text-dim); font-size: .8rem }
+.movies-category-control strong { grid-column: 1; font-size: 1.05rem; overflow: hidden; white-space: nowrap; text-overflow: ellipsis }
+.movies-category-control > span { grid-column: 2; grid-row: 1 / 3; align-self: center; color: var(--focus) }
+.movies-category-control:focus { transform: none }
+.movies-browser .search { width: 21rem; max-width: 26vw }
+.movies-context { display: flex; flex: none; align-items: center; gap: 1.5rem; height: 3.2rem; padding: .25rem .75rem; color: var(--text-dim) }
+.movies-context strong { flex: 1; font-size: 1.05rem; color: #dce9f7; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.2 }
+.movies-context > span { flex: none; font-size: .85rem; font-variant-numeric: tabular-nums }
+.movies-grid { --movie-gap: 1rem; flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 0 12px; scrollbar-width: none; scroll-behavior: auto; overflow-anchor: none }
+.movies-grid::-webkit-scrollbar, .movies-category-options::-webkit-scrollbar { display: none }
+.movies-grid-content { position: relative; width: 100% }
+.movies-grid-content > .state-panel { height: 100% }
+.movie-card.poster-card { width: calc((100% - 5 * var(--movie-gap)) / 6); height: calc(var(--movie-row) - 1rem); padding: 0; border: 0; background: transparent; border-radius: .45rem; overflow: hidden }
+.movie-poster { display: block; width: 100%; height: calc(var(--movie-row) - 5.2rem); object-fit: cover; border-radius: .4rem; background: linear-gradient(135deg, #2b405a, #111b2c) }
+div.movie-poster.image-fallback { font-size: 3rem; color: #a9c1dc }
+.movie-card.poster-card strong { padding: .45rem .25rem 0; font-size: .95rem; line-height: 1.2; height: 2.8rem; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical }
+.movie-card.poster-card small { margin: 0; padding: .15rem .25rem; font-size: .8rem; color: #a6b6c7 }
+.movie-card.poster-card:focus { outline: .22rem solid #eafaff; outline-offset: .2rem; box-shadow: 0 0 0 .45rem rgba(79,210,255,.3); transform: none; background: #203248 }
+.movies-error { display: flex; align-items: center; justify-content: space-between; padding: .8rem; color: #ffb4b4; gap: 1rem }
+.movies-error button { padding: .5rem 1rem }
+.movies-modal { position: absolute; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center; background: rgba(3,7,13,.88) }
+.movies-category-dialog { display: flex; flex-direction: column; width: 40rem; max-width: 85vw; height: 80%; padding: 1.8rem; background: #121e2e; border: .1rem solid #3b526b; border-radius: 1rem; box-shadow: 0 1rem 5rem #000 }
+.movies-category-dialog header { display: flex; justify-content: space-between; align-items: center; padding: 0 .7rem 1rem }
+.movies-category-dialog h2 { font-size: 1.65rem }
+.movies-category-dialog header button { padding: .6rem 1rem; background: #25354a }
+.movies-category-options { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: .6rem; scrollbar-width: none }
+.movies-category-options button { display: block; width: 100%; padding: .8rem 1rem; margin-bottom: .25rem; font-size: 1.15rem; line-height: 1.3; white-space: normal; overflow-wrap: break-word }
+.movies-category-options button:focus { transform: none }
+.movies-category-options .selected-category { color: #79ddff; background: #1d344b }
+.movies-category-hint { margin: 1rem .7rem 0; color: var(--text-dim); font-size: .9rem }

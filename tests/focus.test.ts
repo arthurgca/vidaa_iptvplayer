@@ -123,4 +123,17 @@ describe('FocusManager', () => {
     expect(list.scrollTop).toBe(58);
     expect(layout.scrollTop).toBe(0);
   });
+
+  it('reveals a card in both its horizontal track and its outer vertical shelf viewport', () => {
+    const rect = (left: number, top: number, width: number, height: number) => ({ left, top, right: left + width, bottom: top + height, width, height });
+    const outer = { parentElement: null, scrollHeight: 1000, clientHeight: 200, scrollWidth: 400, clientWidth: 400, scrollTop: 0, scrollLeft: 0, getBoundingClientRect: () => rect(0, 0, 400, 200) };
+    const track = { parentElement: outer, scrollHeight: 150, clientHeight: 150, scrollWidth: 1000, clientWidth: 400, scrollTop: 0, scrollLeft: 0, getBoundingClientRect: () => rect(0, 300, 400, 150) };
+    const card = { parentElement: track, focus() {}, getBoundingClientRect: () => rect(600, 310, 100, 120) } as unknown as HTMLElement;
+    vi.stubGlobal('window', { getComputedStyle: (node: unknown) => node === track ? { overflowX: 'auto', overflowY: 'hidden' } : { overflowX: 'hidden', overflowY: 'auto' } });
+    const manager = new FocusManager();
+    manager.register({ key: 'card', group: 'shelf', index: 0, onSelect() {}, element: card });
+    expect(track.scrollLeft).toBe(308);
+    expect(outer.scrollTop).toBe(238);
+    expect(outer.scrollLeft).toBe(0);
+  });
 });

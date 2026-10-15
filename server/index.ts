@@ -11,6 +11,7 @@ import type { Category, Channel, Favorite, HistoryItem, SeriesItem, VodItem } fr
 import { APP_VERSION } from './version.js';
 import { clearXtreamCache, streamUrl, validateAccount, xtream } from './xtream/client.js';
 import { normalizeCategories, normalizeChannels, normalizeSeries, normalizeSeriesInfo, normalizeVod, normalizeVodInfo } from './xtream/normalizer.js';
+import { movieIndex } from './xtream/movieIndex.js';
 
 await initConfig();
 await initStore();
@@ -120,6 +121,13 @@ app.get('/api/xtream/live-categories', asyncRoute(async (_req, res) => res.json(
 app.get('/api/xtream/live-streams', asyncRoute(async (req, res) => res.json(page(await live(stringParam(req.query.category_id) || undefined), req))));
 app.get('/api/xtream/vod/categories', asyncRoute(async (_req, res) => res.json(await categories('vod'))));
 app.get('/api/xtream/vod', asyncRoute(async (req, res) => res.json(page(await vod(stringParam(req.query.category_id) || undefined), req))));
+// Local windows over one cached Xtream response; never forward offset/limit to the provider.
+app.get('/api/xtream/vod/catalog', asyncRoute(async (req, res) => {
+  const raw = library.contentCleared() ? [] : getConfig().demoMode
+    ? demoVod.map(item => ({ ...item, stream_id: item.id, category_id: item.categoryId, stream_icon: item.poster }))
+    : await xtream('get_vod_streams');
+  res.json(movieIndex(raw).page(stringParam(req.query.category_id), stringParam(req.query.search), Number(req.query.offset) || 0, Number(req.query.limit) || 120, stringParam(req.query.anchor), stringParam(req.query.sort) || 'added-desc'));
+}));
 app.get('/api/xtream/vod/:id', asyncRoute(async (req, res) => {
   if (library.contentCleared()) { res.status(404).end(); return; }
   const id = stringParam(req.params.id);

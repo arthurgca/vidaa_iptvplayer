@@ -96,7 +96,7 @@ describe('catalog pagination', () => {
     expect(container.querySelectorAll('.channel-row')).toHaveLength(20);
   });
 
-  it.each(['movies', 'series'] as const)('pages the routed %s catalog with P UP/P DOWN, retaining filters and respecting bounds', async (kind) => {
+  it.each(['series'] as Array<'movies' | 'series'>)('pages the routed %s catalog with P UP/P DOWN, retaining filters and respecting bounds', async (kind) => {
     vi.spyOn(api, 'status').mockResolvedValue({ version: '1.2.2', configured: true, demoMode: true, language: 'en', languageConfigured: true, autoplayLive: false });
     act(() => render(<RoutedHarness />, container)); await settle();
     const homeIndex = kind === 'movies' ? 1 : 2;
@@ -122,23 +122,23 @@ describe('catalog pagination', () => {
   it('ignores repeated page buttons while the routed catalog request is pending', async () => {
     vi.spyOn(api, 'status').mockResolvedValue({ version: '1.2.2', configured: true, demoMode: true, language: 'en', languageConfigured: true, autoplayLive: false });
     act(() => render(<RoutedHarness />, container)); await settle();
-    act(() => (container.querySelectorAll('.home-card')[1] as HTMLButtonElement).click()); await settle();
+    act(() => (container.querySelectorAll('.home-card')[2] as HTMLButtonElement).click()); await settle();
     let resolve!: (value: Page<VodItem>) => void;
-    vi.mocked(api.vod).mockImplementationOnce(() => new Promise((done) => { resolve = done; }));
+    vi.mocked(api.series).mockImplementationOnce(() => new Promise((done) => { resolve = done; }));
     act(() => { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'PageDown' })); }); await settle();
-    const count = vi.mocked(api.vod).mock.calls.length;
+    const count = vi.mocked(api.series).mock.calls.length;
     act(() => { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'PageDown' })); document.dispatchEvent(new KeyboardEvent('keydown', { key: 'PageUp' })); }); await settle();
-    expect(api.vod).toHaveBeenCalledTimes(count);
+    expect(api.series).toHaveBeenCalledTimes(count);
     act(() => resolve(page(movies, 60, 60))); await settle();
     expect(container.textContent).toContain('61–120 of 125');
   });
 
   it('keeps page-change focus intent when another restoration runs while the page loads', async () => {
-    await mount('movies');
+    await mount('series');
     let resolve!: (value: Page<VodItem>) => void;
-    vi.mocked(api.vod).mockImplementationOnce(() => new Promise((done) => { resolve = done; }));
-    act(() => { focus.focus('movies:page:next'); focus.select(); }); await settle();
-    act(() => { focus.focus('movies:cat:all'); });
+    vi.mocked(api.series).mockImplementationOnce(() => new Promise((done) => { resolve = done; }));
+    act(() => { focus.focus('series:page:next'); focus.select(); }); await settle();
+    act(() => { focus.focus('series:cat:all'); });
     act(() => resolve(page(movies, 60, 60))); await settle();
     await act(() => new Promise<void>((done) => setTimeout(done, 70)));
     expect(document.activeElement?.textContent).toContain('Movie 60');
@@ -163,7 +163,7 @@ describe('catalog pagination', () => {
     await press(427); expect(api.guide).toHaveBeenLastCalledWith(start, 6, '', '');
   });
 
-  it.each(['movies', 'series'] as const)('browses every %s page, including a short final page, without growing the grid', async (kind) => {
+  it.each(['series'] as Array<'movies' | 'series'>)('browses every %s page, including a short final page, without growing the grid', async (kind) => {
     await mount(kind);
     expect(container.querySelectorAll('.poster-card')).toHaveLength(60);
     expect(container.textContent).toContain('1–60 of 125');
@@ -202,7 +202,7 @@ describe('catalog pagination', () => {
     expect(api.channels).toHaveBeenLastCalledWith(undefined, 180, '');
   });
 
-  it.each(['live', 'movies', 'series'] as const)('resets %s category and search to page one and carries filters into the next request', async (kind) => {
+  it.each(['live', 'series'] as Array<'live' | 'movies' | 'series'>)('resets %s category and search to page one and carries filters into the next request', async (kind) => {
     await mount(kind);
     const loader = kind === 'live' ? api.channels : kind === 'movies' ? api.vod : api.series;
     const category = kind === 'live' ? 'news' : 'drama';
@@ -221,10 +221,10 @@ describe('catalog pagination', () => {
 
   it('ignores a late page response after the filter has changed', async () => {
     let resolve!: (value: Page<VodItem>) => void;
-    vi.mocked(api.vod).mockImplementation((_category, offset = 0, search = '') => offset === 60 && !search
+    vi.mocked(api.series).mockImplementation((_category, offset = 0, search = '') => offset === 60 && !search
       ? new Promise((done) => { resolve = done; })
       : Promise.resolve(page(search ? movies.slice(0, 2) : movies, offset, 60)));
-    await mount('movies');
+    await mount('series');
     await click('Next ›');
     expect(button('Next ›').disabled).toBe(true);
     expect(container.querySelectorAll('.poster-card')).toHaveLength(0);
@@ -237,47 +237,47 @@ describe('catalog pagination', () => {
   });
 
   it('retries a failed later page by remote and still allows returning to the previous page', async () => {
-    vi.mocked(api.vod).mockImplementationOnce(async () => page(movies, 0, 60)).mockRejectedValueOnce(new Error('Offline'));
-    await mount('movies'); await click('Next ›');
+    vi.mocked(api.series).mockImplementationOnce(async () => page(movies, 0, 60)).mockRejectedValueOnce(new Error('Offline'));
+    await mount('series'); await click('Next ›');
     expect(container.textContent).toContain('Offline');
     expect(button('‹ Previous').disabled).toBe(false);
-    expect(focus.focus('movies:retry')).toBe(true);
+    expect(focus.focus('series:retry')).toBe(true);
     act(() => focus.select()); await settle();
-    expect(api.vod).toHaveBeenLastCalledWith(undefined, 60, '');
+    expect(api.series).toHaveBeenLastCalledWith(undefined, 60, '');
     expect(container.textContent).toContain('61–120 of 125');
   });
 
   it('handles an empty catalog and keeps previous available if the catalog shrinks', async () => {
-    vi.mocked(api.vod).mockResolvedValue({ items: [], total: 0, offset: 0, limit: 60 });
-    await mount('movies');
-    expect(container.textContent).toContain('No movies found.');
+    vi.mocked(api.series).mockResolvedValue({ items: [], total: 0, offset: 0, limit: 60 });
+    await mount('series');
+    expect(container.textContent).toContain('No series found.');
     expect(button('‹ Previous').disabled).toBe(true);
     expect(button('Next ›').disabled).toBe(true);
     act(() => render(null, container));
-    vi.mocked(api.vod).mockResolvedValue({ items: [], total: 20, offset: 60, limit: 60 });
-    await mount('movies', { category: '', search: '', offset: 60 });
+    vi.mocked(api.series).mockResolvedValue({ items: [], total: 20, offset: 60, limit: 60 });
+    await mount('series', { category: '', search: '', offset: 60 });
     expect(button('‹ Previous').disabled).toBe(false);
     expect(button('Next ›').disabled).toBe(true);
     await click('‹ Previous');
-    expect(api.vod).toHaveBeenLastCalledWith(undefined, 0, '');
+    expect(api.series).toHaveBeenLastCalledWith(undefined, 0, '');
   });
 
   it('connects the final grid row to pagination and restores a later-page item after remount', async () => {
     const query = { category: 'drama', search: 'match', offset: 60 };
-    await mount('movies', query, 'movies:item:drama:64:64');
+    await mount('series', query, 'series:item:drama:64:64');
     await act(() => new Promise<void>((resolve) => setTimeout(resolve, 70)));
-    expect(focus.focused).toBe('movies:item:drama:64:64');
-    expect(focus.focus('movies:item:drama:119:119')).toBe(true);
+    expect(focus.focused).toBe('series:item:drama:64:64');
+    expect(focus.focus('series:item:drama:119:119')).toBe(true);
     act(() => { focus.move('down'); });
-    expect(focus.focused).toBe('movies:page:next');
+    expect(focus.focused).toBe('series:page:next');
     act(() => { focus.move('up'); });
-    expect(focus.focused).toBe('movies:item:drama:119:119');
+    expect(focus.focused).toBe('series:item:drama:119:119');
     act(() => { focus.move('down'); focus.select(); }); await settle();
     await act(() => new Promise<void>((resolve) => setTimeout(resolve, 70)));
-    expect(focus.focused).toBe('movies:item:drama:120:120');
+    expect(focus.focused).toBe('series:item:drama:120:120');
   });
 
-  it.each(['movies', 'series'] as const)('keeps the %s filters, page, and selected item through a real details/Back route transition', async (kind) => {
+  it.each(['series'] as Array<'movies' | 'series'>)('keeps the %s filters, page, and selected item through a real details/Back route transition', async (kind) => {
     vi.spyOn(api, 'status').mockResolvedValue({ version: '1.2.2', configured: true, demoMode: true, language: 'en', languageConfigured: true, autoplayLive: false });
     vi.spyOn(api, 'history').mockResolvedValue([]);
     vi.spyOn(api, 'vodInfo').mockResolvedValue(movies[64]!);

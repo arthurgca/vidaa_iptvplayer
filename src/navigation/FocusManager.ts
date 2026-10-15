@@ -38,6 +38,10 @@ export class FocusManager {
     this.listeners.forEach((listener) => listener(key)); return true;
   }
   select() { this.nodes.get(this.current)?.onSelect(); }
+  jumpRow(offset: number) {
+    const node = this.nodes.get(this.current);
+    return node?.orientation === 'horizontal' ? this.jump(node.group, offset) : false;
+  }
   /** Move by an exact number of items without leaving the list or activating a selection. */
   jump(group: string, offset: number) {
     const nodes = [...this.nodes.values()].filter((node) => node.group === group && this.inScope(node)).sort((a, b) => a.index - b.index);
@@ -168,7 +172,6 @@ export class FocusManager {
         else if (scrollsY && item.bottom > viewport.bottom - margin) container.scrollTop += item.bottom - viewport.bottom + margin;
         if (scrollsX && item.left < viewport.left + margin) container.scrollLeft += item.left - viewport.left - margin;
         else if (scrollsX && item.right > viewport.right - margin) container.scrollLeft += item.right - viewport.right + margin;
-        return;
       }
       container = container.parentElement;
     }

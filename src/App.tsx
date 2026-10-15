@@ -15,11 +15,12 @@ import { MediaCatalog } from './screens/MediaCatalog';
 import { Settings } from './screens/Settings';
 import { Guide } from './screens/Guide';
 import { resumePosition } from './player/history';
+import { captureBrowseScroll, type ScrollPosition } from './navigation/scroll';
 import { emptyCatalogQuery, type CatalogQuery } from './hooks/useCatalogPage';
 import type { Channel, Episode, Favorite, HistoryItem, SeriesItem, VodItem } from './types';
 
 type RouteName = 'home'|'live'|'guide'|'movies'|'movie-details'|'series'|'series-details'|'favorites'|'recent'|'settings'|'player';
-interface Route { name: RouteName; data?: unknown; restoreFocus?: string }
+interface Route { name: RouteName; data?: unknown; restoreFocus?: string; scroll?: ScrollPosition[] }
 const PAGE_GROUPS: Partial<Record<RouteName, string[]>> = {
   favorites: ['favorites', 'favorites-items'], recent: ['recent', 'recent-remove'],
   'series-details': ['episodes', 'episode-restarts', 'seasons'], settings: ['settings-controls']
@@ -48,7 +49,7 @@ function AppRouter({ language, setLanguage }: RouterProps) {
   const playingLiveChannel = useRef<string>();
 
   const restoreSoon = (key?: string) => window.setTimeout(() => { if (!key || !focus.focus(key)) focus.focusFirst(); }, 50);
-  const push = (name: RouteName, data?: unknown, restoreFocus?: string) => { navigationRequest.current++; setRoutes((stack) => [...stack.slice(0,-1), { ...stack[stack.length-1]!, restoreFocus: focus.focused }, { name, data, restoreFocus }]); };
+  const push = (name: RouteName, data?: unknown, restoreFocus?: string) => { navigationRequest.current++; const scroll = captureBrowseScroll(); setRoutes((stack) => [...stack.slice(0,-1), { ...stack[stack.length-1]!, restoreFocus: focus.focused, scroll }, { name, data, restoreFocus }]); };
   const replaceHome = () => { navigationRequest.current++; setRoutes([{ name: 'home' }]); restoreSoon('home:live'); };
   const back = () => {
     navigationRequest.current++;
@@ -56,7 +57,8 @@ function AppRouter({ language, setLanguage }: RouterProps) {
     const previous = routes[routes.length - 2];
     const restoreFocus = current?.name === 'player' && previous?.name === 'live' && playingLiveChannel.current
       ? `live:channel:${playingLiveChannel.current}` : previous?.restoreFocus;
-    setRoutes((stack) => stack.slice(0, -1).map((route, index) => index === stack.length - 2 ? { ...route, restoreFocus } : route));
+    // Channel surfing can change the return target; an old scroll offset must not hide it.
+    setRoutes((stack) => stack.slice(0, -1).map((route, index) => index === stack.length - 2 ? { ...route, restoreFocus, scroll: route.restoreFocus === restoreFocus ? route.scroll : undefined } : route));
     restoreSoon(restoreFocus);
   };
   useEffect(() => {
@@ -83,6 +85,7 @@ function AppRouter({ language, setLanguage }: RouterProps) {
     if (action === 'CHANNEL_UP' || action === 'CHANNEL_DOWN') {
       const direction = action === 'CHANNEL_UP' ? -1 : 1;
       if (current?.name === 'live') focus.jump('live-channels', direction * 5);
+      else if (current?.name === 'home') focus.jumpRow(direction * 5);
       else if (current && PAGINATED_ROUTES.includes(current.name)) {
         const key = current.name === 'guide' ? `guide:channels-${direction < 0 ? 'previous' : 'next'}`
           : `${current.name}:page:${direction < 0 ? 'previous' : 'next'}`;
@@ -98,7 +101,7 @@ function AppRouter({ language, setLanguage }: RouterProps) {
     if (action === 'NAV_LEFT') focus.move('left');
     if (action === 'NAV_RIGHT') focus.move('right');
   }), [current?.name, routes.length]);
-  useEffect(() => { if (current?.name !== 'player') restoreSoon(current?.restoreFocus); }, [current?.name]);
+  useEffect(() => { if (current?.name !== 'player' && current?.name !== 'movies') restoreSoon(current?.restoreFocus); }, [current?.name]);
 
   if (startupError) return <ErrorState error={t('app.backendUnavailable', { error: startupError })} retry={() => location.reload()} />;
   if (!current) return <Spinner label={t('app.starting')} />;
@@ -130,12 +133,12 @@ function AppRouter({ language, setLanguage }: RouterProps) {
   };
   let screen: preact.ComponentChildren;
   switch (current.name) {
-    case 'home': screen = <Home open={openHomeRoute} />; break;
-    case 'live': screen = <LiveTV query={catalogs.live} setQuery={(query) => setCatalog('live', query)} restoreFocus={current.restoreFocus} guide={() => push('guide')} play={(channel, channels) => push('player', { type: 'live', id: channel.id, item: channel, extension: channel.extension, channels } satisfies Playable)} />; break;
+    case 'home': screen = <Home open={openHomeRoute} movie={(item) => push('movie-details', item)} series={(item) => push('series-details', item)} resume={openRecent} favorite={openFavorite} restoreFocus={current.restoreFocus} scroll={current.scroll} />; break;
+    case 'live': screen = <LiveTV query={catalogs.live} setQuery={(query) => setCatalog('live', query)} restoreFocus={current.restoreFocus} scroll={current.scroll} lastTuned={playingLiveChannel.current} guide={() => push('guide')} play={(channel, channels) => { playingLiveChannel.current = channel.id; push('player', { type: 'live', id: channel.id, item: channel, extension: channel.extension, channels } satisfies Playable); }} />; break;
     case 'guide': screen = <Guide category={catalogs.live.category} play={(channel, channels) => push('player', { type: 'live', id: channel.id, item: channel, extension: channel.extension, channels } satisfies Playable)} />; break;
-    case 'movies': screen = <MediaCatalog kind="movies" query={catalogs.movies} setQuery={(query) => setCatalog('movies', query)} restoreFocus={current.restoreFocus} open={(item) => push('movie-details', item)} />; break;
+    case 'movies': screen = <MediaCatalog kind="movies" query={catalogs.movies} setQuery={(query) => setCatalog('movies', query)} restoreFocus={current.restoreFocus} scroll={current.scroll} open={(item) => push('movie-details', item)} />; break;
     case 'movie-details': screen = <MovieDetails seed={current.data as VodItem} play={playMovie} />; break;
-    case 'series': screen = <MediaCatalog kind="series" query={catalogs.series} setQuery={(query) => setCatalog('series', query)} restoreFocus={current.restoreFocus} open={(item) => push('series-details', item)} />; break;
+    case 'series': screen = <MediaCatalog kind="series" query={catalogs.series} setQuery={(query) => setCatalog('series', query)} restoreFocus={current.restoreFocus} scroll={current.scroll} open={(item) => push('series-details', item)} />; break;
     case 'series-details': screen = <SeriesDetails seed={current.data as SeriesItem} play={playEpisode} />; break;
     case 'favorites': screen = <Favorites open={openFavorite} />; break;
     case 'recent': screen = <Recent open={openRecent} />; break;
@@ -146,5 +149,5 @@ function AppRouter({ language, setLanguage }: RouterProps) {
   // The hint is fixed to the bottom of the safe area, so the screen underneath reserves a band for it.
   const backHint = current.name !== 'home' && current.name !== 'player';
   const pageHint = PAGINATED_ROUTES.includes(current.name) || Boolean(PAGE_GROUPS[current.name]);
-  return <div className={`app-shell${backHint ? ' with-hint' : ''}`}>{screen}{backHint && <div className="back-hint">{t('app.back')}{current.name === 'live' ? <> · {t('app.channelNavigation')}</> : pageHint && <> · {t('app.pageNavigation')}</>}</div>}{debug &&<div className="debug-overlay">route: {current.name}<br/>focus: {focusedKey || 'none'}<br/>key: {lastKey || 'none'}<br/>viewport: {window.innerWidth}x{window.innerHeight} dpr:{window.devicePixelRatio || 1}</div>}</div>;
+  return <div className={`app-shell${backHint ? ' with-hint' : ''}`}>{screen}{backHint && <div className="back-hint">{t('app.back')}{current.name === 'movies' ? <> · {t('movies.pageHint')}</> : current.name === 'live' ? <> · {t('app.channelNavigation')}</> : pageHint && <> · {t('app.pageNavigation')}</>}</div>}{debug &&<div className="debug-overlay">route: {current.name}<br/>focus: {focusedKey || 'none'}<br/>key: {lastKey || 'none'}<br/>viewport: {window.innerWidth}x{window.innerHeight} dpr:{window.devicePixelRatio || 1}</div>}</div>;
 }
