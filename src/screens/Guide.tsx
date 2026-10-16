@@ -1,3 +1,4 @@
+import { RemoteHint, RemoteButton } from '../components/RemoteHint';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { api } from '../api/client';
 import { Empty, Image, Spinner, formatTime } from '../components/common';
@@ -73,6 +74,6 @@ export function Guide({ category, play }: { category: string; play: (channel: Ch
         <Focusable focusKey="guide:channels-next" group="guide-pages" index={1} orientation="horizontal" disabled={offset + rows.length >= data!.total} onSelect={() => setOffset(offset + 6)} className="secondary-button">{t('guide.nextChannels')}</Focusable>
       </div>
     </>}
-    <div className="guide-description">{selected ? <><strong>{selected.title} · {formatTime(selected.start)} – {formatTime(selected.end)} · OK: {t('guide.live')}</strong><p>{selected.description || t('guide.noDescription')}</p></> : <p>{t('guide.help')}</p>}</div>
+    <div className="guide-description">{selected ? <><strong>{selected.title} · {formatTime(selected.start)} – {formatTime(selected.end)} · <RemoteButton name="ok" /> {t('guide.live')}</strong><p>{selected.description || t('guide.noDescription')}</p></> : <p><RemoteHint id="guide.help" /></p>}</div>
   </main>;
 }

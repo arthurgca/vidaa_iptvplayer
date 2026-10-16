@@ -1,3 +1,4 @@
+import { RemoteHint } from '../components/RemoteHint';
 import { useEffect, useState } from 'preact/hooks';
 import { api } from '../api/client';
 import { Focusable } from '../navigation/FocusContext';
@@ -56,6 +57,6 @@ export function Home({ open, movie, series, resume, favorite, restoreFocus, scro
     <div className="browse-intro"><span className="eyebrow">{t('browse.yourLibrary')}</span><h1>{selected?.title || t('home.title')}</h1><p>{selected?.subtitle || t('browse.homeHint')}</p></div>
     {failed && <div className="browse-warning"><span>{t('browse.unavailable')}</span><Focusable focusKey="home:retry" group="home-status" index={0} neighbors={{ up: 'home:live', down: first || 'home:retry' }} onSelect={retry} className="secondary-button">{t('common.retry')}</Focusable></div>}
     {rows.length ? <MediaRows rows={rows} scope="home" top={failed ? 'home:retry' : 'home:movies'} highlight={setSelected} /> : loading ? <Spinner /> : !failed && <div className="state-panel">{t('browse.homeEmpty')}</div>}
-    <footer className="key-hint">{t('browse.remoteHint')}</footer>
+    <footer className="key-hint"><RemoteHint id="browse.remoteHint" /></footer>
   </main>;
 }

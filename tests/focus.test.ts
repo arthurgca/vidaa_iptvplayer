@@ -101,6 +101,17 @@ describe('FocusManager', () => {
     manager.unregister('save', oldButton);
     expect(manager.focus('save')).toBe(true);
   });
+  it('updates navigation metadata without focusing the same element again', () => {
+    const manager = new FocusManager(); const button = element();
+    const nativeFocus = vi.spyOn(button, 'focus');
+    manager.register({ key: 'save', group: 'actions', index: 0, onSelect() {}, element: button });
+    manager.register({ key: 'next', group: 'other', index: 0, onSelect() {}, element: element() });
+    nativeFocus.mockClear();
+    manager.register({ key: 'save', group: 'actions', index: 2, neighbors: { right: 'next' }, onSelect() {}, element: button });
+    expect(nativeFocus).not.toHaveBeenCalled();
+    expect(manager.focused).toBe('save');
+    manager.move('right'); expect(manager.focused).toBe('next');
+  });
   it('does not turn a horizontal press into a mostly vertical jump', () => {
     const manager = new FocusManager();
     const positioned = (left: number, top: number) => ({

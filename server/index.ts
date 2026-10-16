@@ -10,7 +10,7 @@ import { liveSelection } from './liveSelection.js';
 import type { Category, Channel, Favorite, HistoryItem, SeriesItem, VodItem } from './types.js';
 import { APP_VERSION } from './version.js';
 import { clearXtreamCache, streamUrl, validateAccount, xtream } from './xtream/client.js';
-import { normalizeCategories, normalizeChannels, normalizeSeries, normalizeSeriesInfo, normalizeVod, normalizeVodInfo } from './xtream/normalizer.js';
+import { normalizeCategories, normalizeChannels, normalizeSeriesInfo, normalizeVod, normalizeVodInfo } from './xtream/normalizer.js';
 import { movieIndex, seriesIndex } from './xtream/movieIndex.js';
 
 await initConfig();

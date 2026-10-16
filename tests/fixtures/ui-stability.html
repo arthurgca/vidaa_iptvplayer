@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><title>UI stability regression</title>
+<link rel="stylesheet" href="/src/styles.css">
+<div id="app" class="app-shell"></div>
+<script type="module">
+import { h, render } from 'preact';
+import { useState } from 'preact/hooks';
+import { api } from '/src/api/client.ts';
+import { MediaCatalog } from '/src/screens/MediaCatalog.tsx';
+import { LiveTV } from '/src/screens/LiveTV.tsx';
+import { useFocusManager } from '/src/navigation/FocusContext.tsx';
+
+const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+const root = document.getElementById('app');
+const check = (value, message) => { if (!value) throw new Error(message); };
+let focus;
+function Harness({ kind }) {
+  focus = useFocusManager();
+  const [query, setQuery] = useState({ category: '', search: '', offset: 0 });
+  return h(kind === 'live' ? LiveTV : MediaCatalog, { kind, query, setQuery, open() {}, play() {}, guide() {} });
+}
+
+async function run() {
+  const reports = [];
+  for (const kind of ['live', 'movies', 'series']) {
+    const counts = { catalogs: 0, windows: 0, blur: 0, inputHandlerMs: 0, maxCards: 0 };
+    const channels = Array.from({ length: 8726 }, (_, i) => ({ id: String(i), name: `1234567890 Channel ${i}`, categoryId: 'cat' }));
+    let arrive;
+    api.liveCatalog = () => { counts.catalogs++; return new Promise(resolve => { arrive = () => resolve(channels); }); };
+    api.liveCategories = api.vodCategories = api.seriesCategories = async () => [{ id: 'cat', name: 'Category' }];
+    api.favorites = async () => [];
+    api.epg = async () => ({ status: 'empty', progress: 0 });
+    const windowPage = async (_category, offset = 0, term = '') => {
+      counts.windows++;
+      const items = Array.from({ length: 120 }, (_, i) => ({ id: String(offset + i), name: `1234567890 Item ${offset + i}`, categoryId: 'cat' }));
+      return { items: term === 'absent' ? [] : items, offset, total: term === 'absent' ? 0 : 43534, limit: 120 };
+    };
+    api.movieWindow = api.seriesWindow = windowPage;
+    render(h(Harness, { kind, key: kind }), root);
+    await wait(100);
+    const input = root.querySelector('input'), header = root.querySelector('header');
+    check(root.querySelectorAll('.search-hint .remote-key svg').length === 2, `${kind}: missing search remote icons`);
+    check(!root.textContent.includes('{key_'), `${kind}: untranslated remote hint tokens`);
+    focus.focus(`${kind}:search`); focus.select();
+    input.addEventListener('blur', () => counts.blur++);
+    const type = async term => {
+      input.value = term; input.setSelectionRange(term.length, term.length);
+      const start = performance.now();
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      counts.inputHandlerMs += performance.now() - start;
+      if (arrive) { arrive(); arrive = undefined; }
+      await wait(kind === 'live' ? 30 : 290);
+      check(root.querySelector('input') === input && root.querySelector('header') === header, `${kind}: interactive controls replaced`);
+      check(document.activeElement === input, `${kind}: input lost focus for length ${term.length}`);
+      check(input.value === term && input.selectionStart === term.length, `${kind}: editing state changed`);
+      counts.maxCards = Math.max(counts.maxCards, root.querySelectorAll('.movie-card, .channel-row').length);
+    };
+    for (let length = 1; length <= 10; length++) await type('1234567890'.slice(0, length));
+    for (const term of ['123456789', '123', 'absent', '']) await type(term);
+    check(counts.blur === 0, `${kind}: unexpected blur`);
+    const viewport = root.querySelector(kind === 'live' ? '.channel-list' : '.movies-grid');
+    const row = kind === 'live' ? parseFloat(getComputedStyle(document.documentElement).fontSize) * 4 : parseFloat(viewport.style.getPropertyValue('--movie-row'));
+    const budget = (Math.ceil(viewport.clientHeight / row) + (kind === 'live' ? 5 : 3)) * (kind === 'live' ? 1 : 6);
+    check(counts.maxCards <= budget, `${kind}: virtualization exceeded budget (${counts.maxCards}/${budget})`);
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    check(document.activeElement !== input, `${kind}: explicit dismissal failed`);
+    focus.focus(`${kind}:search`); focus.select();
+    check(document.activeElement === input, `${kind}: cannot reopen search`);
+    reports.push({ kind, ...counts });
+    render(null, root);
+    await wait(0);
+  }
+  return reports;
+}
+window.uiStability = { done: false };
+run().then(reports => { window.uiStability = { done: true, reports }; })
+  .catch(error => { window.uiStability = { done: true, error: error.message }; });
+</script></html>

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
+import { RemoteHint } from '../components/RemoteHint';
 import { api } from '../api/client';
 import { clearEpgCache } from '../api/epg';
 import { ErrorState, Spinner } from '../components/common';
@@ -78,7 +79,7 @@ export function Settings({ firstRun = false, language, setLanguage, saved, clear
       else setMessage(next.configured ? t('settings.clearedEnvironment') : t('settings.cleared'));
     }).catch((reason) => setError(reason.message)).finally(() => setBusy(false));
   };
-  return <main className="screen settings-screen"><header><span className="eyebrow">{firstRun ? t('settings.firstRun.eyebrow') : t('settings.eyebrow')}</span><h1>{firstRun ? t('settings.firstRun.title') : t('settings.title')}</h1><p>{firstRun ? t('settings.firstRun.help') : t('settings.help')}</p></header>
+  return <main className="screen settings-screen"><header><span className="eyebrow">{firstRun ? t('settings.firstRun.eyebrow') : t('settings.eyebrow')}</span><h1>{firstRun ? t('settings.firstRun.title') : t('settings.title')}</h1><p>{firstRun ? <RemoteHint id="settings.firstRun.help" /> : t('settings.help')}</p></header>
     <form className="settings-form" onSubmit={(e) => e.preventDefault()}>
       <div className="settings-row">
         <RemoteSelect focusKey="settings:language" index={0} label={t('settings.language')} value={language} change={changeLanguage} options={LANGUAGES.map((option) => ({ value: option.value, label: option.label }))} />

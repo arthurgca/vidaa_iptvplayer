@@ -1,3 +1,4 @@
+import { RemoteHint } from '../components/RemoteHint';
 import type HlsType from 'hls.js';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { api } from '../api/client';
@@ -345,7 +346,7 @@ export function Player({ media, registerAction, close, liveChannelChanged }: { m
   const aspectLabels: Record<AspectMode, string> = { auto: t('player.aspect.auto'), '16:9': '16:9', '4:3': '4:3', zoom: t('player.aspect.zoom'), stretch: t('player.aspect.stretch') };
   return <main className="player-screen"><video ref={video} className={`video-aspect-${aspectMode.replace(':', '-')}`} autoplay playsInline onLoadedMetadata={() => { updateDimensions(); refreshTracks(); applyResume(); }} onDurationChange={() => { applyResume(); syncPlayback(); }} onCanPlay={applyResume} onTimeUpdate={syncPlayback} onProgress={syncPlayback} onSeeking={syncPlayback} onResize={updateDimensions} onPlaying={playing} onPause={() => { if (state === 'playing') { setState('paused'); window.clearTimeout(healthyTimer.current); window.clearTimeout(stallTimer.current); stallTimer.current = undefined; syncPlayback(); void saveSession(); } }} onWaiting={waiting} onStalled={waiting} onEnded={ended} onError={mediaError} />
     {state === 'loading' && <div className="player-status"><span className="spinner" />{attempt ? t('player.reconnecting', { attempt }) : t('player.loading')}</div>}
-    {state === 'error' && <div className="player-error"><h2>{t('player.error.title')}</h2><p>{t('player.error.body')}</p><div><button onClick={retry}>{t('common.retry')}</button><button onClick={close}>{t('common.back')}</button></div><small>{t('player.error.hint')}</small></div>}
+    {state === 'error' && <div className="player-error"><h2>{t('player.error.title')}</h2><p>{t('player.error.body')}</p><div><button onClick={retry}>{t('common.retry')}</button><button onClick={close}>{t('common.back')}</button></div><small><RemoteHint id="player.error.hint" /></small></div>}
     {browsing && <aside className="browse-bar" aria-label={t('player.browse.label')}><div className="browse-heading"><h2>{t('player.browse.title')}</h2><span>{browseIndex + 1} / {channels.length}</span></div>
       <div className="browse-rows">{browseRows.map(({ channel, index, epg: row }) => {
         const highlighted = index === browseIndex;
@@ -359,7 +360,7 @@ export function Player({ media, registerAction, close, liveChannelChanged }: { m
             {highlighted && row?.current?.description && <p className="browse-description">{row.current.description}</p>}
           </div>
         </div>;
-      })}</div><small className="browse-hint">{t('player.browse.hint')}</small></aside>}
+      })}</div><small className="browse-hint"><RemoteHint id="player.browse.hint" /></small></aside>}
     {state === 'ended' && <div className="player-ended"><h2>{t('player.ended')}</h2>{upcoming && <button onClick={playNext}>{t('player.nextEpisode', { name: upcoming.name })}</button>}<button onClick={close}>{t('common.back')}</button></div>}
     {options && <PlayerOptions audio={audio} subtitles={subtitles} selectAudio={(index) => { if (video.current) selectAudio(video.current, index, hls.current); refreshTracks(); }} selectSubtitle={(index) => { if (video.current) selectSubtitle(video.current, index, hls.current); refreshTracks(); }} next={upcoming ? { name: upcoming.name, play: playNext } : undefined} autoNext={active.type === 'series' ? autoNext : undefined} toggleAutoNext={toggleAutoNext} close={closeOptions} />}
     {overlay && state !== 'error' && <section className="player-overlay">
@@ -370,7 +371,7 @@ export function Player({ media, registerAction, close, liveChannelChanged }: { m
       </div>}
       <div className="playback-tech" aria-label={t('player.tech.label')}>{technicalRows.map(([label, value]) => <span key={label}><small>{label}</small><strong>{value}</strong></span>)}</div>
       <div className="aspect-options" role="radiogroup" aria-label={t('player.aspect.label')}><small>{t('player.aspect.label')}</small>{ASPECT_MODES.map((mode) => <button key={mode} type="button" role="radio" aria-checked={aspectMode === mode} className={aspectMode === mode ? 'active' : ''} onClick={() => selectAspectMode(mode)}>{aspectLabels[mode]}</button>)}</div>
-      <button className="secondary-button player-options-button" onClick={openOptions}>{t('player.options')}</button><div className="overlay-hints">{active.type === 'live' ? <><span>{t('player.hint.changeChannel')}</span><span>{t('player.hint.browse')}</span><span>{t('player.hint.aspectLive')}</span></> : <><span>{t('player.hint.rewind')}</span><span>{t('player.hint.forward')}</span><span>{t('player.hint.aspectVod')}</span></>}<span>{t('player.optionsHint')}</span><span>{t('player.hint.exit')}</span></div>
+      <button className="secondary-button player-options-button" onClick={openOptions}>{t('player.options')}</button><div className="overlay-hints">{active.type === 'live' ? <><span><RemoteHint id="player.hint.changeChannel" /></span><span><RemoteHint id="player.hint.browse" /></span><span><RemoteHint id="player.hint.aspectLive" /></span></> : <><span><RemoteHint id="player.hint.rewind" /></span><span><RemoteHint id="player.hint.forward" /></span><span><RemoteHint id="player.hint.aspectVod" /></span></>}<span><RemoteHint id="player.optionsHint" /></span><span><RemoteHint id="player.hint.exit" /></span></div>
     </section>}
   </main>;
 }

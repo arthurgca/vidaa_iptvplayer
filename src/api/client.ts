@@ -1,6 +1,6 @@
 import type { Language } from '../i18n';
 import { clearEpgCache } from './epg';
-import type { AppConfig, Category, Channel, EpgNow, Favorite, HistoryItem, MediaKind, MovieSort, Page, SeriesItem, VodItem, Episode, GuidePage, SeriesInfo } from '../types';
+import type { AppConfig, Category, Channel, EpgNow, Favorite, HistoryItem, MediaKind, MovieSort, Page, SeriesItem, VodItem, GuidePage, SeriesInfo } from '../types';
 
 export interface AppStatus { version: string; configured: boolean; demoMode: boolean; language: Language; languageConfigured: boolean; autoplayLive: boolean }
 export interface LiveSelection { channel?: Channel; offset: number; channels: Channel[] }

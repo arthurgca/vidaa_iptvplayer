@@ -96,13 +96,10 @@ div.image-fallback { display: grid; place-items: center; background: var(--surfa
 .home-card > span:last-child { min-width: 0 }
 .home-card strong { display: block; font-size: 1.5rem; font-weight: 800; line-height: 1.15; margin-bottom: .3rem }
 .home-card small { display: block; font-size: .9rem; color: var(--text-dim) }
-.home-icon { flex: 0 0 4.3rem; width: 4.3rem; height: 4.3rem; display: grid; place-items: center; border-radius: var(--radius); background: var(--accent-soft); color: var(--focus) }
-.home-icon svg { display: block; width: 2.2rem; height: 2.2rem; overflow: visible }
-.home-card:focus .home-icon { background: var(--accent); color: #fff }
 .key-hint { flex: none; display: flex; align-items: center; justify-content: center; gap: .5rem; padding-top: 1.1rem; color: var(--text-faint); font-size: .85rem; font-weight: 700 }
-.key-hint kbd { display: inline-flex; align-items: center; justify-content: center; min-width: 2.3rem; height: 1.8rem; margin-left: .9rem; padding: 0 .5rem; color: var(--text); font-size: .8rem; font-weight: 800; background: var(--surface-2); border: var(--hairline) solid var(--line-strong); border-radius: .35rem }
-.key-hint .dpad-key { width: 3rem; padding: 0 }
 .dpad-icon { display: block; width: 2.2rem; height: 1.3rem }
+.remote-key, .key-hint .remote-key { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 1.7em; min-width: 1.7em; height: 1.6em; padding: .1em; margin: 0 .2em; vertical-align: middle; color: var(--text); background: var(--surface-2); border: var(--hairline) solid var(--line-strong); border-radius: .3em; font: inherit }
+.remote-key svg { display: block; width: 1.3em; height: 1.3em }
 
 /* ---- Search -------------------------------------------------------------- */
 .search-control { position: relative; display: inline-block; border-radius: var(--radius); outline: none }
@@ -118,9 +115,7 @@ div.image-fallback { display: grid; place-items: center; background: var(--surfa
 .category-panel, .channel-panel, .epg-panel, .media-panel { display: flex; flex-direction: column; min-width: 0; min-height: 0; padding: 1.2rem }
 .category-panel, .channel-panel { border-right: var(--hairline) solid var(--line) }
 .category-panel { color: var(--text-dim) }
-.category-list, .channel-list, .poster-grid, .library-grid, .recent-list { flex: 1; min-height: 0; overflow-y: auto; padding: .4rem }
-.category-list { margin-top: .7rem }
-.category-list .focusable { display: block; width: 100%; margin-bottom: .3rem; padding: .7rem .8rem; border-radius: var(--radius-sm); font-size: .95rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.channel-list, .poster-grid, .library-grid, .recent-list { flex: 1; min-height: 0; overflow-y: auto; padding: .4rem }
 .active-item { background: var(--accent-soft); color: var(--focus); box-shadow: inset .2rem 0 0 var(--focus) }
 .list-heading { flex: none; display: flex; align-items: baseline; justify-content: space-between; gap: 1rem }
 .list-heading span { color: var(--text-faint); font-size: .82rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase }
@@ -149,10 +144,6 @@ div.image-fallback { display: grid; place-items: center; background: var(--surfa
 
 /* ---- Movies and series catalog ------------------------------------------- */
 .poster-grid { display: grid; grid-template-columns: repeat(5, 1fr); align-content: start; gap: 1.1rem }
-.catalog-pagination { flex: none; display: flex; align-items: center; justify-content: space-between; gap: .6rem; padding: .6rem .4rem 0; border-top: var(--hairline) solid var(--line) }
-.catalog-pagination span { color: var(--text-dim); font-size: .85rem; font-variant-numeric: tabular-nums; text-align: center }
-.catalog-pagination .focusable { padding: .6rem .8rem; white-space: nowrap }
-.catalog-pagination button:disabled { opacity: .4; cursor: default }
 .poster-card { display: block; min-width: 0; align-self: start; padding: .5rem; background: var(--surface-2); border-radius: var(--radius) }
 .poster { display: block; width: 100%; aspect-ratio: 2 / 3; object-fit: cover; background: var(--bg); border-radius: var(--radius-sm); margin-bottom: .55rem }
 div.poster { min-height: 8rem }
@@ -381,7 +372,6 @@ div.poster { min-height: 8rem }
 .selection-summary > strong { font-size: 1.35rem; line-height: 1.25; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden }
 .selection-summary > span { display: block; color: var(--focus); font-size: .9rem; margin-top: .2rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 .selection-summary p { color: var(--text-dim); font-size: .9rem; line-height: 1.35; margin: .3rem 0 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis }
-.library-browser .category-list .focusable, .live-browser .category-list .focusable { font-size: 1rem }
 .live-browser .live-layout { grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); border-radius: .55rem; background: #101722 }
 .live-browser .epg-panel { background: linear-gradient(155deg, #1b2b3f, #121c29) }
 .live-browser .epg-logo { width: 7rem; height: 3.8rem; margin-bottom: .8rem }
@@ -442,6 +432,7 @@ div.poster { min-height: 8rem }
 .movies-category-control small { grid-column: 1; color: var(--text-dim); font-size: .8rem }
 .movies-category-control strong { grid-column: 1; font-size: 1.05rem; overflow: hidden; white-space: nowrap; text-overflow: ellipsis }
 .movies-category-control > span { grid-column: 2; grid-row: 1 / 3; align-self: center; color: var(--focus) }
+.selector-chevron { display: block; width: 1em; height: 1em }
 .movies-category-control:focus { transform: none }
 .movies-browser .search { width: 21rem; max-width: 26vw }
 .movies-context { display: flex; flex: none; align-items: center; gap: 1.5rem; height: 3.2rem; padding: .25rem .75rem; color: var(--text-dim) }

@@ -17,9 +17,13 @@ export class FocusManager {
   private listeners = new Set<(key: string) => void>();
 
   register(node: FocusNode) {
+    const previous = this.nodes.get(node.key);
     this.nodes.set(node.key, node);
+    // Updating navigation metadata is not a focus transition. In particular,
+    // focusing an input's proxy here would close the native TV keyboard.
+    if (previous?.element === node.element) return;
     if (!this.current && node.autoFocus !== false) this.focus(node.key);
-    else if (this.current === node.key) this.focusWithoutScrolling(node.element);
+    else if (this.current === node.key && !node.element.contains?.(node.element.ownerDocument?.activeElement ?? null)) this.focusWithoutScrolling(node.element);
   }
   unregister(key: string, element?: HTMLElement) {
     const registered = this.nodes.get(key);

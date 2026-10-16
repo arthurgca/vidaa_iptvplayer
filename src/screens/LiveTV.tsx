@@ -1,10 +1,12 @@
+import { RemoteHint } from '../components/RemoteHint';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { api } from '../api/client';
 import { isEpgFresh, loadEpg, peekEpg, programProgress } from '../api/epg';
 import { Empty, formatTime, Image, Progress, Spinner } from '../components/common';
 import { SearchField } from '../components/SearchField';
+import { ChevronDownIcon } from '../components/icons';
 import { useAsync } from '../hooks/useAsync';
-import type { CatalogQuery } from '../hooks/useCatalogPage';
+import type { CatalogQuery } from '../catalogQuery';
 import { useTranslate } from '../i18n/I18nContext';
 import { Focusable, useFocusManager } from '../navigation/FocusContext';
 import type { ScrollPosition } from '../navigation/scroll';
@@ -18,6 +20,7 @@ interface LiveTVProps {
 }
 const CATEGORIES = 'live:categories', SEARCH = 'live:search', GUIDE = 'live:guide', FAVORITE = 'live:favorite';
 const keyFor = (id: string) => `live:channel:${id}`;
+const editingSearch = () => document.activeElement instanceof HTMLInputElement;
 const validProgram = (p: Program | undefined): p is Program => Boolean(p?.title?.trim() && !/^(no programmes?|no programs?|no programme information)[.!]?$/i.test(p.title.trim()) && Number.isFinite(p.start) && Number.isFinite(p.end) && p.end > p.start);
 
 function ChannelRow({ channel, index, number, rowHeight, selected, tuned, favorite, highlight, play }: {
@@ -109,10 +112,18 @@ export function LiveTV({ query, setQuery, restoreFocus, scroll, lastTuned, play,
     const anchor = first && restoreFocus?.startsWith('live:channel:') ? restoreFocus.slice('live:channel:'.length) : clearing ? unsearched.current?.id : selectedId.current;
     previousFilter.current = { category: query.category, search: query.search };
     const found = rows.findIndex(channel => channel.id === anchor);
-    const i = found >= 0 ? found : first && !anchor ? Math.min(query.offset, Math.max(0, rows.length - 1)) : 0;
+    const categoryChanged = previous.category !== query.category;
+    const i = found >= 0 ? found : Math.min(first ? query.offset : categoryChanged ? 0 : cursor.current, Math.max(0, rows.length - 1));
     const savedTop = first ? scroll?.find(item => item.key === 'live:channels')?.top : clearing ? unsearched.current?.top : undefined;
-    if (!rows.length) { selectedId.current = undefined; setSelected(undefined); setTop(0); if (catalog.error) focus.focus('live:retry'); else focus.focus(SEARCH); return; }
-    const takeFocus = first || pendingFocus.current || focus.focused.startsWith('live:channel:');
+    if (!rows.length) {
+      selectedId.current = undefined; setSelected(undefined); setTop(0);
+      if (!editingSearch() && !panel) {
+        if (catalog.error) focus.focus('live:retry');
+        else if (first || pendingFocus.current || focus.focused.startsWith('live:channel:')) focus.focus(SEARCH);
+      }
+      pendingFocus.current = false; return;
+    }
+    const takeFocus = !editingSearch() && !panel && (first || pendingFocus.current || focus.focused.startsWith('live:channel:'));
     reveal(i, takeFocus, savedTop ?? (found < 0 ? 0 : undefined));
   }, [rows, catalog.loading, catalog.error]);
   const start = Math.max(0, Math.floor(top / geometry.row) - 2), end = Math.min(rows.length, Math.ceil((top + geometry.height) / geometry.row) + 2);
@@ -123,7 +134,7 @@ export function LiveTV({ query, setQuery, restoreFocus, scroll, lastTuned, play,
     if (!pendingFocus.current || panel) return;
     const version = revision.current;
     void Promise.resolve().then(() => {
-      if (!alive.current || version !== revision.current || !pendingFocus.current) return;
+      if (!alive.current || version !== revision.current || !pendingFocus.current || editingSearch()) return;
       const channel = rows[cursor.current];
       if (channel && focus.focus(keyFor(channel.id))) pendingFocus.current = false;
     });
@@ -131,7 +142,7 @@ export function LiveTV({ query, setQuery, restoreFocus, scroll, lastTuned, play,
   useEffect(() => { if (rows.length) reveal(cursor.current, focus.focused.startsWith('live:channel:')); }, [geometry.row, geometry.height]);
   useEffect(() => {
     if (catalog.loading || !catalog.error) return;
-    const timer = window.setTimeout(() => { focus.focus('live:retry') || focus.focus(SEARCH); }, 0);
+    const timer = window.setTimeout(() => { if (!editingSearch() && focus.focused !== SEARCH) focus.focus('live:retry') || focus.focus(SEARCH); }, 0);
     return () => clearTimeout(timer);
   }, [catalog.loading, catalog.error]);
   useEffect(() => () => { alive.current = false; revision.current++; focus.setScope('root'); }, []);
@@ -230,12 +241,12 @@ export function LiveTV({ query, setQuery, restoreFocus, scroll, lastTuned, play,
   const epgMessage = !epg || epg.loading ? t('live.epgLoading') : !epg.value || epg.value.status === 'error' ? t('live.epgError') : epg.value.status === 'empty' || next ? t('live.epgEmpty') : t('live.epgUnavailable');
   return <main className="screen catalog-screen live-browser">
     <header className="section-header"><div><span className="eyebrow">{t('live.eyebrow')}</span><h1>{t('live.title')}</h1></div>
-      <Focusable focusKey={CATEGORIES} group="live-header" index={0} neighbors={{ right: SEARCH, down: searchReturn }} onSelect={showPanel} className="live-category-control" title={categoryName}><small>{t('common.categories')}</small><strong>{categoryName}</strong><span>⌄</span></Focusable>
+      <Focusable focusKey={CATEGORIES} group="live-header" index={0} neighbors={{ right: SEARCH, down: searchReturn }} onSelect={showPanel} className="live-category-control" title={categoryName}><small>{t('common.categories')}</small><strong>{categoryName}</strong><span aria-hidden="true"><ChevronDownIcon /></span></Focusable>
       <SearchField focusKey={SEARCH} value={query.search} input={value => setQuery({ ...queryRef.current, search: value, offset: 0 })} placeholder={t('live.search')} neighbors={{ left: CATEGORIES, right: GUIDE, down: searchReturn }} />
       <Focusable focusKey={GUIDE} group="live-header" index={2} neighbors={{ left: SEARCH, down: searchReturn }} onSelect={() => { if (selected) focus.focus(keyFor(selected.id)); guide(); }} className="secondary-button">{t('guide.title')}</Focusable>
     </header>
     <div className="live-layout">
-      <section className="channel-panel"><div className="list-heading"><h2>{t('live.channelCount', { count: rows.length })}</h2><span>{t('live.okToWatch')}</span></div>
+      <section className="channel-panel"><div className="list-heading"><h2>{t('live.channelCount', { count: rows.length })}</h2><span><RemoteHint id="live.okToWatch" /></span></div>
         <div ref={viewport} className="channel-list" data-scroll-key="live:channels" aria-label={t('live.title')} onScroll={event => setTop(event.currentTarget.scrollTop)}>
           {catalog.loading ? <Spinner label={t('live.loading')} /> : catalog.error ? <div className="state-panel error"><p>{t('live.catalogError')}</p><Focusable focusKey="live:retry" group="live-status" index={0} onSelect={() => { pendingFocus.current = true; catalog.retry(); }} className="secondary-button">{t('common.retry')}</Focusable></div> : !rows.length ? <Empty>{t('live.empty')}</Empty> : <div className="live-channel-window" style={{ height: rows.length * geometry.row + 16 }}>
             {mounted.map(i => { const channel = rows[i]!; return <ChannelRow key={channel.id} channel={channel} index={i} number={channel.number || index.positions.get(channel.id)!} rowHeight={geometry.row} selected={selected?.id === channel.id} tuned={lastTuned === channel.id} favorite={favoriteIds.has(channel.id)} highlight={() => saveCursor(i)} play={() => play(channel, rows)} />; })}
@@ -257,7 +268,7 @@ export function LiveTV({ query, setQuery, restoreFocus, scroll, lastTuned, play,
       <div className="live-category-options">
         <Focusable focusKey="live:selector:0" group="live-selector" index={0} onFocus={() => { panelCursor.current = 0; setPanelIndex(0); }} onSelect={() => changeCategory('')} className={!query.category ? 'selected-category' : ''}>{t('live.allChannels')}</Focusable>
         {categories.loading ? <Spinner /> : categories.error ? <div className="state-panel"><p>{t('live.categoriesError')}</p><Focusable focusKey="live:selector:retry" group="live-selector" index={1} onSelect={categories.retry}>{t('common.retry')}</Focusable></div> : categories.data?.map((item, i) => <Focusable key={item.id} focusKey={`live:selector:${i + 1}`} group="live-selector" index={i + 1} title={item.name} onFocus={() => { panelCursor.current = i + 1; setPanelIndex(i + 1); }} onSelect={() => changeCategory(item.id)} className={query.category === item.id ? 'selected-category' : ''}>{item.name}</Focusable>)}
-      </div><small className="muted">{t('live.categoryHint')} · {Math.max(1, panelIndex + 1)} / {(categories.data?.length || 0) + 1}</small>
+      </div><small className="muted"><RemoteHint id="live.categoryHint" /> · {Math.max(1, panelIndex + 1)} / {(categories.data?.length || 0) + 1}</small>
     </section></div>}
   </main>;
 }

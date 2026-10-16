@@ -1,3 +1,4 @@
+import { RemoteHint } from './components/RemoteHint';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { api } from './api/client';
 import { ErrorState, Spinner } from './components/common';
@@ -17,7 +18,7 @@ import { Settings } from './screens/Settings';
 import { Guide } from './screens/Guide';
 import { resumePosition } from './player/history';
 import { captureBrowseScroll, type ScrollPosition } from './navigation/scroll';
-import { emptyCatalogQuery, type CatalogQuery } from './hooks/useCatalogPage';
+import { emptyCatalogQuery, type CatalogQuery } from './catalogQuery';
 import type { Channel, Episode, Favorite, HistoryItem, SeriesItem, VodItem } from './types';
 
 type RouteName = 'home'|'live'|'guide'|'movies'|'movie-details'|'series'|'series-details'|'favorites'|'recent'|'settings'|'player';
@@ -160,5 +161,5 @@ function AppRouter({ language, setLanguage }: RouterProps) {
   // The hint is fixed to the bottom of the safe area, so the screen underneath reserves a band for it.
   const backHint = current.name !== 'home' && current.name !== 'player';
   const pageHint = PAGINATED_ROUTES.includes(current.name) || Boolean(PAGE_GROUPS[current.name]);
-  return <div className={`app-shell${backHint ? ' with-hint' : ''}`}>{screen}{backHint && <div className="back-hint">{t('app.back')}{(current.name === 'movies' || current.name === 'series') ? <> · {t('movies.pageHint')}</> : current.name === 'live' ? <> · {t('app.channelNavigation')}</> : pageHint && <> · {t('app.pageNavigation')}</>}</div>}{debug &&<div className="debug-overlay">route: {current.name}<br/>focus: {focusedKey || 'none'}<br/>key: {lastKey || 'none'}<br/>viewport: {window.innerWidth}x{window.innerHeight} dpr:{window.devicePixelRatio || 1}</div>}</div>;
+  return <div className={`app-shell${backHint ? ' with-hint' : ''}`}>{screen}{backHint && <div className="back-hint"><RemoteHint id="app.back" />{(current.name === 'movies' || current.name === 'series') ? <> · <RemoteHint id="movies.pageHint" /></> : current.name === 'live' ? <> · <RemoteHint id="app.channelNavigation" /></> : pageHint && <> · <RemoteHint id="app.pageNavigation" /></>}</div>}{debug &&<div className="debug-overlay">route: {current.name}<br/>focus: {focusedKey || 'none'}<br/>key: {lastKey || 'none'}<br/>viewport: {window.innerWidth}x{window.innerHeight} dpr:{window.devicePixelRatio || 1}</div>}</div>;
 }

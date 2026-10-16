@@ -1,9 +1,11 @@
+import { RemoteHint } from './RemoteHint';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { api } from '../api/client';
 import { Image } from '../components/common';
 import { SearchField } from '../components/SearchField';
+import { ChevronDownIcon } from './icons';
 import { useAsync } from '../hooks/useAsync';
-import type { CatalogQuery } from '../hooks/useCatalogPage';
+import type { CatalogQuery } from '../catalogQuery';
 import { useTranslate } from '../i18n/I18nContext';
 import { Focusable, useFocusManager } from '../navigation/FocusContext';
 import type { ScrollPosition } from '../navigation/scroll';
@@ -238,8 +240,8 @@ export function CatalogBrowser({ kind, query, setQuery, restoreFocus, scroll, op
   return <main className="screen movies-browser">
     <div className="movies-background" aria-hidden={panel ? 'true' : undefined}>
       <header className="section-header"><div><span className="eyebrow">{t('catalog.eyebrow')}</span><h1>{t(`catalog.${kind}.title`)}</h1></div>
-        <Focusable hoverFocus={false} focusKey={CATEGORIES} group="movies-header" index={0} onSelect={showPanel} className="movies-category-control"><small>{t('common.categories')}</small><strong>{categoryName}</strong><span aria-hidden="true">⌄</span></Focusable>
-        <Focusable hoverFocus={false} focusKey={SORT} group="movies-header" index={1} onSelect={() => { setPanelIndex(SORTS.indexOf(sort)); setPanel('sort'); }} className="movies-category-control movies-sort-control"><small>{t('movies.sort')}</small><strong>{t(`movies.sort.${sort}`)}</strong><span aria-hidden="true">⌄</span></Focusable>
+        <Focusable hoverFocus={false} focusKey={CATEGORIES} group="movies-header" index={0} onSelect={showPanel} className="movies-category-control"><small>{t('common.categories')}</small><strong>{categoryName}</strong><span aria-hidden="true"><ChevronDownIcon /></span></Focusable>
+        <Focusable hoverFocus={false} focusKey={SORT} group="movies-header" index={1} onSelect={() => { setPanelIndex(SORTS.indexOf(sort)); setPanel('sort'); }} className="movies-category-control movies-sort-control"><small>{t('movies.sort')}</small><strong>{t(`movies.sort.${sort}`)}</strong><span aria-hidden="true"><ChevronDownIcon /></span></Focusable>
         <SearchField focusKey={SEARCH} value={query.search} input={value => setQuery({ ...queryRef.current, search: value, offset: 0 })} placeholder={t('movies.searchScope', { category: categoryName })} />
       </header>
       <div className="movies-context"><strong>{selected?.name || categoryName}</strong><span role="status">{loading ? t(`catalog.${kind}.loading`) : error ? '' : t(`${kind}.count`, { count: (currentView?.total ?? 0).toLocaleString() })}</span></div>
@@ -262,7 +264,7 @@ export function CatalogBrowser({ kind, query, setQuery, restoreFocus, scroll, op
         {categories.loading && <p>{t('common.loading')}</p>}
         {categories.error && <div className="error"><p>{t('movies.categoriesUnavailable')}</p><Focusable hoverFocus={false} focusKey={`${kind}:selector:retry`} group="movies-selector" index={1} onSelect={categories.retry}>{t('common.retry')}</Focusable></div>}
         </>}
-      </div><p className="movies-category-hint">{t(panel === 'sort' ? 'movies.sortHint' : 'movies.categoryHint')}</p>
+      </div><p className="movies-category-hint">{panel === 'sort' ? t('movies.sortHint') : <RemoteHint id="movies.categoryHint" />}</p>
     </section></div>}
   </main>;
 }

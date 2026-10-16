@@ -29,6 +29,65 @@ beforeEach(() => {
 });
 afterEach(() => { act(() => render(null, container)); container.remove(); clearEpgCache(); vi.restoreAllMocks(); });
 
+it('keeps the same editing input through changing and empty results', async () => {
+  act(() => render(<Harness />, container)); await settle();
+  const input = container.querySelector('input')!;
+  const wrapper = input.parentElement!;
+  const trace: string[] = [];
+  input.addEventListener('input', () => trace.push('input'));
+  input.addEventListener('blur', () => trace.push('blur'));
+  wrapper.addEventListener('focus', () => trace.push('proxy-focus'));
+  const register = focus.register.bind(focus);
+  vi.spyOn(focus, 'register').mockImplementation(node => {
+    if (node.key === 'live:search') trace.push('register-search');
+    register(node);
+  });
+  act(() => input.focus());
+  trace.length = 0;
+  for (const value of ['C', 'Ch', 'Channel 2', 'absent', 'absen', '']) {
+    act(() => { input.value = value; input.setSelectionRange(value.length, value.length); input.dispatchEvent(new Event('input', { bubbles: true })); });
+    await settle();
+    expect(container.querySelector('input')).toBe(input);
+    expect(document.activeElement, JSON.stringify(trace)).toBe(input);
+    expect(input.value).toBe(value);
+    expect(input.selectionStart).toBe(value.length);
+  }
+  expect(trace).not.toContain('blur');
+  expect(api.liveCatalog).toHaveBeenCalledTimes(1);
+  expect(play).not.toHaveBeenCalled();
+});
+
+it('does not take focus when the initial catalog arrives during editing', async () => {
+  let resolve!: (value: typeof channels) => void;
+  vi.mocked(api.liveCatalog).mockImplementationOnce(() => new Promise(done => { resolve = done; }));
+  act(() => render(<Harness />, container)); await settle();
+  const input = container.querySelector('input')!;
+  act(() => { input.focus(); input.value = 'Channel'; input.dispatchEvent(new Event('input', { bubbles: true })); }); await settle();
+  act(() => resolve(channels)); await settle();
+  expect(container.querySelector('input')).toBe(input);
+  expect(document.activeElement).toBe(input);
+  expect(input.value).toBe('Channel');
+});
+
+it('preserves channel identity, selection and scroll when EPG arrives', async () => {
+  let resolve!: (value: EpgNow) => void;
+  vi.mocked(api.epg).mockImplementationOnce(() => new Promise(done => { resolve = done; }));
+  act(() => render(<Harness />, container)); await settle();
+  act(() => { focus.focus('live:channel:2'); }); await settle(180);
+  const channel = container.querySelector('[data-channel-id="2"]');
+  const list = container.querySelector<HTMLElement>('.channel-list')!;
+  list.scrollTop = 30;
+  const blur = vi.fn(); channel!.addEventListener('blur', blur);
+  act(() => resolve({ progress: 0, status: 'empty' })); await settle();
+  expect(focus.focused).toBe('live:channel:2');
+  expect(document.activeElement).toBe(channel);
+  expect(container.querySelector('[data-channel-id="2"]')).toBe(channel);
+  expect(container.querySelector('.selected-row')).toBe(channel);
+  expect(list.scrollTop).toBe(30);
+  expect(blur).not.toHaveBeenCalled();
+  expect(play).not.toHaveBeenCalled();
+});
+
 it('updates preview without tuning, marks the last tuned channel independently, and only tunes on OK', async () => {
   act(() => render(<Harness />, container)); await settle(); await settle(140);
   act(() => { focus.focus('live:channel:1'); }); await settle();

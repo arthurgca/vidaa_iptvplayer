@@ -1,5 +1,5 @@
+import { RemoteHint } from './RemoteHint';
 import { useRef } from 'preact/hooks';
-import { useTranslate } from '../i18n/I18nContext';
 import { useFocusManager, useFocusProxy } from '../navigation/FocusContext';
 import type { Direction, NeighborTarget } from '../navigation/FocusManager';
 
@@ -9,7 +9,6 @@ interface SearchFieldProps {
 }
 
 export function SearchField({ focusKey, value, placeholder, input, neighbors }: SearchFieldProps) {
-  const t = useTranslate();
   const focus = useFocusManager();
   const target = useRef<HTMLInputElement>(null);
   const proxy = useFocusProxy({
@@ -25,6 +24,6 @@ export function SearchField({ focusKey, value, placeholder, input, neighbors }: 
       // filtered poster with the old cursor's ID can reclaim focus on mounting.
       if (focus.focused !== focusKey) { focus.focus(focusKey); event.currentTarget.focus(); }
     }} onInput={(event) => input(event.currentTarget.value)} />
-    <small className="search-hint">{t('search.hint')}</small>
+    <small className="search-hint"><RemoteHint id="search.hint" /></small>
   </div>;
 }

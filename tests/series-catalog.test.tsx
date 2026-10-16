@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MediaCatalog } from '../src/screens/MediaCatalog';
 import { App } from '../src/App';
 import { api } from '../src/api/client';
-import { emptyCatalogQuery, type CatalogQuery } from '../src/hooks/useCatalogPage';
+import { emptyCatalogQuery, type CatalogQuery } from '../src/catalogQuery';
 import { useFocusManager } from '../src/navigation/FocusContext';
 import type { FocusManager } from '../src/navigation/FocusManager';
 import type { Page, VodItem } from '../src/types';

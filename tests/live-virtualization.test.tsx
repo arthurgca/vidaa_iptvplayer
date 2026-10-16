@@ -68,7 +68,7 @@ it('searches the entire selected category, finds the final channel and restores 
 });
 
 it('retains duplicate names by ID and tunes exactly the highlighted channel once with the full queue', async () => {
-  await mount('live:channel:10'); await press('ArrowDown'); await press('Enter');
+  await mount('live:channel:10'); expect(focus.focused).toBe('live:channel:10'); await press('ArrowDown'); expect(focus.focused).toBe('live:channel:11'); await press('Enter');
   expect(play).toHaveBeenCalledTimes(1); expect(play).toHaveBeenCalledWith(channels[11], channels);
 });
 

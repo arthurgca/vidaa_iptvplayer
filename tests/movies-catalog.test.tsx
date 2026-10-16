@@ -3,10 +3,10 @@ import { render } from 'preact';
 import { useState } from 'preact/hooks';
 import { act } from 'preact/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { MoviesCatalog } from '../src/screens/MoviesCatalog';
+import { MediaCatalog } from '../src/screens/MediaCatalog';
 import { App } from '../src/App';
 import { api } from '../src/api/client';
-import { emptyCatalogQuery, type CatalogQuery } from '../src/hooks/useCatalogPage';
+import { emptyCatalogQuery, type CatalogQuery } from '../src/catalogQuery';
 import { useFocusManager } from '../src/navigation/FocusContext';
 import type { FocusManager } from '../src/navigation/FocusManager';
 import type { Page, VodItem } from '../src/types';
@@ -24,7 +24,7 @@ function page(category = '', offset = 0, search = '', anchor = ''): Page<VodItem
 }
 function Harness({ initial = emptyCatalogQuery(), restoreFocus, routed = false }: { initial?: CatalogQuery; restoreFocus?: string; routed?: boolean }) {
   focus = useFocusManager(); const [query, setQuery] = useState(initial);
-  return routed ? <App /> : <MoviesCatalog query={query} setQuery={setQuery} restoreFocus={restoreFocus} open={open} />;
+  return routed ? <App /> : <MediaCatalog kind="movies" query={query} setQuery={setQuery} restoreFocus={restoreFocus} open={open} />;
 }
 async function mount(initial?: CatalogQuery, restoreFocus?: string, routed = false) {
   act(() => render(<Harness initial={initial} restoreFocus={restoreFocus} routed={routed} />, container)); await settle(); await ready();

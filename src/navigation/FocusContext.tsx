@@ -29,12 +29,15 @@ export function useFocusProxy({ focusKey, group, index, columns, orientation = '
   const proxy = useRef<HTMLDivElement>(null);
   const activateRef = useRef(activate);
   activateRef.current = activate;
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!proxy.current) return;
     const element = proxy.current;
     focus.register({ key: focusKey, group, index, columns, orientation, neighbors, autoFocus, onSelect: () => activateRef.current(), element });
-    return () => focus.unregister(focusKey, element);
   }, [focus, focusKey, group, index, columns, orientation, autoFocus, JSON.stringify(neighbors)]);
+  useLayoutEffect(() => {
+    const element = proxy.current!;
+    return () => focus.unregister(focusKey, element);
+  }, [focus, focusKey]);
   return {
     ref: proxy,
     tabIndex: -1,
@@ -59,7 +62,11 @@ export function Focusable({ focusKey, group, index, columns, orientation, neighb
     if (!ref.current || disabled) return;
     const element = ref.current;
     focus.register({ key: focusKey, group, index, columns, orientation, neighbors, onSelect: () => selectRef.current(), element });
-    return () => focus.unregister(focusKey, element);
   }, [focus, focusKey, group, index, columns, orientation, disabled, JSON.stringify(neighbors)]);
+  useLayoutEffect(() => {
+    const element = ref.current!;
+    if (disabled) { focus.unregister(focusKey, element); return; }
+    return () => focus.unregister(focusKey, element);
+  }, [focus, focusKey, disabled]);
   return <button ref={ref} type="button" tabIndex={-1} className={`focusable ${className}`} onClick={onSelect} onFocus={onFocus} onMouseEnter={hoverFocus ? () => focus.focus(focusKey) : undefined} disabled={disabled} title={title}>{children}</button>;
 }
