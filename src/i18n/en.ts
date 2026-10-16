@@ -4,6 +4,14 @@
  * label on the TV. Placeholders use `{name}` and are filled by `translate`.
  */
 export const en = {
+  'series.count': '{count} series',
+  'series.unavailable': 'Series could not be loaded. Try again or choose a category.',
+  'series.detailsUnavailable': 'Episodes could not be loaded. Try again or return to the catalog.',
+  'series.noEpisodes': 'No seasons or episodes supplied by the provider.',
+  'series.emptySeason': 'The provider has not supplied episodes for this season.',
+  'series.unnumberedSeason': 'Unnumbered season',
+  'series.episode': 'Episode',
+  'series.episodeCount': '{count} episodes',
   'movies.searchScope': 'Search in {category}',
   'movies.count': '{count} movies',
   'movies.emptyHint': 'No matching titles in {category}. Change search or open Categories.',

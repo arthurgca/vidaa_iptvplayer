@@ -1,5 +1,5 @@
 import { createContext } from 'preact';
-import { useContext, useEffect, useRef, useState } from 'preact/hooks';
+import { useContext, useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { FocusManager, type Direction, type FocusNode, type NeighborTarget } from './FocusManager';
 
 const manager = new FocusManager();
@@ -53,7 +53,9 @@ interface FocusableProps {
 export function Focusable({ focusKey, group, index, columns, orientation, neighbors, onSelect, className = '', children, disabled, title, onFocus, hoverFocus = true }: FocusableProps) {
   const focus = useFocusManager(); const ref = useRef<HTMLButtonElement>(null);
   const selectRef = useRef(onSelect); selectRef.current = onSelect;
-  useEffect(() => {
+  // Season switches replace neighbors and episode buttons in the same commit.
+  // Register before paint so the next remote event cannot follow obsolete targets.
+  useLayoutEffect(() => {
     if (!ref.current || disabled) return;
     const element = ref.current;
     focus.register({ key: focusKey, group, index, columns, orientation, neighbors, onSelect: () => selectRef.current(), element });

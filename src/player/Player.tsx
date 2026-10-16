@@ -121,7 +121,7 @@ export function Player({ media, registerAction, close, liveChannelChanged }: { m
   const session = useRef<{ media: Playable; position: number; duration: number; completed: boolean; started: boolean }>();
   const [attempt, setAttempt] = useState(0); const [options, setOptions] = useState(false);
   const [audio, setAudio] = useState<TrackChoice[]>([]); const [subtitles, setSubtitles] = useState<TrackChoice[]>([]);
-  const [autoNext, setAutoNext] = useState(() => { try { return localStorage.getItem('vidaa-auto-next') !== 'false'; } catch { return true; } });
+  const [autoNext, setAutoNext] = useState(() => { try { return localStorage.getItem('vidaa-auto-next') === 'true'; } catch { return false; } });
   const [overlay, setOverlay] = useState(true); const [browsing, setBrowsing] = useState(false); const [browseIndex, setBrowseIndex] = useState(0); const [epgRevision, setEpgRevision] = useState(0);
   const [active, setActive] = useState(media); const [epg, setEpg] = useState<EpgNow>(); const [state, setState] = useState<'loading'|'playing'|'paused'|'ended'|'error'>('loading');
   const [technical, setTechnical] = useState<TechnicalInfo>({ format: t('player.tech.stream') });

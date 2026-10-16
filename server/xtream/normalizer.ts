@@ -1,4 +1,4 @@
-import type { Category, Channel, Episode, SeriesItem, VodItem } from '../types.js';
+import type { Category, Channel, Episode, Season, SeriesItem, VodItem } from '../types.js';
 
 type UnknownRecord = Record<string, unknown>;
 const text = (value: unknown) => value == null ? '' : String(value);
@@ -58,23 +58,53 @@ export function normalizeSeries(input: unknown): SeriesItem[] {
   })).filter((item) => item.id);
 }
 
-export function normalizeSeriesInfo(input: unknown, seriesId: string) {
-  const root = (input || {}) as UnknownRecord;
-  const info = (root.info || {}) as UnknownRecord;
-  const episodesRoot = root.episodes as Record<string, unknown[]> | unknown[] | undefined;
-  const episodeRows: UnknownRecord[] = [];
-  if (Array.isArray(episodesRoot)) episodeRows.push(...episodesRoot as UnknownRecord[]);
-  else if (episodesRoot) Object.keys(episodesRoot).forEach((season) => {
-    const rows = episodesRoot[season]; if (Array.isArray(rows)) episodeRows.push(...rows as UnknownRecord[]);
+// Xtream variants use an object keyed by season, flat episode arrays, or nested arrays.
+// Keep unknown numbers unknown; never turn specials (zero) into season/episode one.
+const record = (value: unknown): UnknownRecord => value && typeof value === 'object' && !Array.isArray(value) ? value as UnknownRecord : {};
+const ordinal = (value: unknown): number | undefined => {
+  if (value == null || String(value).trim() === '') return undefined;
+  const n = Number(value); return Number.isSafeInteger(n) && n >= 0 ? n : undefined;
+};
+const firstText = (...values: unknown[]) => values.map(optional).find(value => value?.trim());
+
+export function normalizeSeriesInfo(input: unknown, seriesId: string, fallback?: SeriesItem) {
+  const root = record(input), info = record(root.info);
+  const seasons = new Map<string, Season>();
+  const addSeason = (id: string, number?: number, name?: string) => {
+    if (!seasons.has(id)) seasons.set(id, { id, number, name });
+    else if (name) seasons.get(id)!.name = name;
+  };
+  const declared: Array<[string | undefined, unknown]> = Array.isArray(root.seasons)
+    ? root.seasons.map(row => [undefined, row]) : Object.entries(record(root.seasons));
+  declared.forEach(([group, raw], index) => {
+    const row = record(raw), number = ordinal(row.season_number) ?? ordinal(row.season) ?? ordinal(group);
+    addSeason(number === undefined ? `declared:${text(row.id) || group || index}` : String(number), number, optional(row.name));
   });
-  const episodes: Episode[] = episodeRows.map((item) => {
-    const details = (item.info || {}) as UnknownRecord;
-    return { id: text(item.id ?? item.stream_id), name: text(item.title ?? item.name) || 'Episode', season: Number(item.season ?? details.season) || 1,
-      episode: Number(item.episode_num ?? item.episode ?? details.episode) || 1, extension: optional(item.container_extension) || 'mp4',
-      duration: optional(details.duration ?? item.duration), description: optional(details.plot ?? details.description) };
-  }).filter((episode) => episode.id);
-  const details: SeriesItem = { id: seriesId, name: text(info.name) || 'Series', categoryId: text(info.category_id), poster: optional(info.cover),
-    backdrop: Array.isArray(info.backdrop_path) ? optional(info.backdrop_path[0]) : optional(info.backdrop_path), year: optional(info.year ?? info.releaseDate),
-    rating: optional(info.rating), genre: optional(info.genre), description: optional(info.plot ?? info.description) };
-  return { item: details, episodes };
+  const episodes: Episode[] = [];
+  const append = (raw: unknown, group?: string) => {
+    const item = record(raw), details = record(item.info);
+    const id = text(item.id ?? item.stream_id); if (!id) return;
+    const season = ordinal(item.season) ?? ordinal(details.season) ?? ordinal(group);
+    const seasonId = season === undefined ? `group:${group ?? 'unknown'}` : String(season);
+    addSeason(seasonId, season);
+    episodes.push({ id, name: firstText(item.title, item.name) || '', season: season ?? null, seasonId,
+      episode: ordinal(item.episode_num) ?? ordinal(item.episode) ?? ordinal(details.episode_num) ?? ordinal(details.episode) ?? null,
+      extension: optional(item.container_extension) || 'mp4',
+      thumbnail: firstText(details.movie_image, details.cover_big, item.movie_image, item.cover),
+      duration: firstText(details.duration, item.duration) || (Number(details.duration_secs) > 0 ? `${Math.round(Number(details.duration_secs) / 60)} min` : undefined),
+      description: firstText(details.plot, details.description, item.plot, item.description) });
+  };
+  if (Array.isArray(root.episodes)) root.episodes.forEach((entry, index) => {
+    if (Array.isArray(entry)) entry.forEach(row => append(row, String(index)));
+    else append(entry);
+  });
+  else Object.entries(record(root.episodes)).forEach(([group, rows]) => {
+    if (Array.isArray(rows)) { const number = ordinal(group); addSeason(number === undefined ? `group:${group}` : String(number), number); rows.forEach(row => append(row, group)); }
+  });
+  const details: SeriesItem = { id: seriesId, name: firstText(info.name, info.title, fallback?.name) || '', categoryId: firstText(info.category_id, fallback?.categoryId) || '',
+    poster: firstText(info.cover, info.stream_icon, fallback?.poster),
+    backdrop: firstText(Array.isArray(info.backdrop_path) ? info.backdrop_path[0] : info.backdrop_path, fallback?.backdrop),
+    year: firstText(info.year, info.release_date, info.releaseDate, fallback?.year), rating: firstText(info.rating, fallback?.rating),
+    genre: firstText(info.genre, fallback?.genre), description: firstText(info.plot, info.description, fallback?.description) };
+  return { item: details, episodes, seasons: [...seasons.values()].sort((a,b) => (a.number ?? Infinity) - (b.number ?? Infinity) || 0) };
 }

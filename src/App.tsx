@@ -8,6 +8,7 @@ import type { Playable } from './player/Player';
 import { Player } from './player/Player';
 import { listenToRemote, type RemoteAction } from './platform/remote';
 import { MovieDetails, SeriesDetails } from './screens/Details';
+import type { SeriesContext } from './screens/SeriesDetails';
 import { Home } from './screens/Home';
 import { Favorites, Recent } from './screens/Library';
 import { LiveTV } from './screens/LiveTV';
@@ -20,7 +21,7 @@ import { emptyCatalogQuery, type CatalogQuery } from './hooks/useCatalogPage';
 import type { Channel, Episode, Favorite, HistoryItem, SeriesItem, VodItem } from './types';
 
 type RouteName = 'home'|'live'|'guide'|'movies'|'movie-details'|'series'|'series-details'|'favorites'|'recent'|'settings'|'player';
-interface Route { name: RouteName; data?: unknown; restoreFocus?: string; scroll?: ScrollPosition[] }
+interface Route { name: RouteName; data?: unknown; restoreFocus?: string; scroll?: ScrollPosition[]; seriesContext?: SeriesContext }
 const PAGE_GROUPS: Partial<Record<RouteName, string[]>> = {
   favorites: ['favorites', 'favorites-items'], recent: ['recent', 'recent-remove'],
   'series-details': ['episodes', 'episode-restarts', 'seasons'], settings: ['settings-controls']
@@ -108,7 +109,7 @@ function AppRouter({ language, setLanguage }: RouterProps) {
     if (action === 'NAV_RIGHT') focus.move('right');
   }), [current?.name, routes.length]);
   useEffect(() => {
-    if (current?.name === 'player' || current?.name === 'movies' || current?.name === 'live') return;
+    if (current?.name === 'player' || current?.name === 'movies' || current?.name === 'series' || current?.name === 'series-details' || current?.name === 'live') return;
     const timer = restoreSoon(current?.restoreFocus);
     return () => clearTimeout(timer);
   }, [current?.name]);
@@ -149,7 +150,7 @@ function AppRouter({ language, setLanguage }: RouterProps) {
     case 'movies': screen = <MediaCatalog kind="movies" query={catalogs.movies} setQuery={(query) => setCatalog('movies', query)} restoreFocus={current.restoreFocus} scroll={current.scroll} open={(item) => push('movie-details', item)} />; break;
     case 'movie-details': screen = <MovieDetails seed={current.data as VodItem} play={playMovie} />; break;
     case 'series': screen = <MediaCatalog kind="series" query={catalogs.series} setQuery={(query) => setCatalog('series', query)} restoreFocus={current.restoreFocus} scroll={current.scroll} open={(item) => push('series-details', item)} />; break;
-    case 'series-details': screen = <SeriesDetails seed={current.data as SeriesItem} play={playEpisode} />; break;
+    case 'series-details': screen = <SeriesDetails key={(current.data as SeriesItem).id} seed={current.data as SeriesItem} play={playEpisode} back={back} restoreFocus={current.restoreFocus} scroll={current.scroll} context={current.seriesContext} saveContext={seriesContext => setRoutes(stack => stack.map((route, i) => i === stack.length - 1 ? { ...route, seriesContext } : route))} />; break;
     case 'favorites': screen = <Favorites open={openFavorite} />; break;
     case 'recent': screen = <Recent open={openRecent} />; break;
     case 'settings': screen = <Settings firstRun={Boolean((current.data as { firstRun?: boolean })?.firstRun)} language={language} setLanguage={setLanguage} saved={(current.data as { firstRun?: boolean })?.firstRun ? replaceHome : back} cleared={() => setCatalogs({ live: emptyCatalogQuery(), movies: emptyCatalogQuery(), series: emptyCatalogQuery() })} />; break;
@@ -159,5 +160,5 @@ function AppRouter({ language, setLanguage }: RouterProps) {
   // The hint is fixed to the bottom of the safe area, so the screen underneath reserves a band for it.
   const backHint = current.name !== 'home' && current.name !== 'player';
   const pageHint = PAGINATED_ROUTES.includes(current.name) || Boolean(PAGE_GROUPS[current.name]);
-  return <div className={`app-shell${backHint ? ' with-hint' : ''}`}>{screen}{backHint && <div className="back-hint">{t('app.back')}{current.name === 'movies' ? <> · {t('movies.pageHint')}</> : current.name === 'live' ? <> · {t('app.channelNavigation')}</> : pageHint && <> · {t('app.pageNavigation')}</>}</div>}{debug &&<div className="debug-overlay">route: {current.name}<br/>focus: {focusedKey || 'none'}<br/>key: {lastKey || 'none'}<br/>viewport: {window.innerWidth}x{window.innerHeight} dpr:{window.devicePixelRatio || 1}</div>}</div>;
+  return <div className={`app-shell${backHint ? ' with-hint' : ''}`}>{screen}{backHint && <div className="back-hint">{t('app.back')}{(current.name === 'movies' || current.name === 'series') ? <> · {t('movies.pageHint')}</> : current.name === 'live' ? <> · {t('app.channelNavigation')}</> : pageHint && <> · {t('app.pageNavigation')}</>}</div>}{debug &&<div className="debug-overlay">route: {current.name}<br/>focus: {focusedKey || 'none'}<br/>key: {lastKey || 'none'}<br/>viewport: {window.innerWidth}x{window.innerHeight} dpr:{window.devicePixelRatio || 1}</div>}</div>;
 }

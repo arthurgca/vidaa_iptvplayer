@@ -1,6 +1,6 @@
 import type { Language } from '../i18n';
 import { clearEpgCache } from './epg';
-import type { AppConfig, Category, Channel, EpgNow, Favorite, HistoryItem, MediaKind, MovieSort, Page, SeriesItem, VodItem, Episode, GuidePage } from '../types';
+import type { AppConfig, Category, Channel, EpgNow, Favorite, HistoryItem, MediaKind, MovieSort, Page, SeriesItem, VodItem, Episode, GuidePage, SeriesInfo } from '../types';
 
 export interface AppStatus { version: string; configured: boolean; demoMode: boolean; language: Language; languageConfigured: boolean; autoplayLive: boolean }
 export interface LiveSelection { channel?: Channel; offset: number; channels: Channel[] }
@@ -23,7 +23,7 @@ const query = (values: Record<string, string | number | undefined>) => {
 const movieWindows = new Map<string, { expires: number; value: Promise<Page<VodItem>> }>();
 let liveCatalog: { expires: number; value: Promise<Channel[]> } | undefined;
 let liveCategories: { expires: number; value: Promise<Category[]> } | undefined;
-export function clearMovieWindows() { movieWindows.clear(); liveCatalog = undefined; liveCategories = undefined; }
+export function clearMovieWindows() { movieWindows.clear(); seriesWindows.clear(); seriesDetails.clear(); seriesDetailsPending.clear(); liveCatalog = undefined; liveCategories = undefined; }
 function fullLiveCatalog() {
   if (liveCatalog && liveCatalog.expires > Date.now()) return liveCatalog.value;
   const entry = { expires: Date.now() + 5 * 60_000, value: request<Channel[]>('/api/xtream/live/catalog') };
@@ -39,14 +39,25 @@ function getLiveCategories() {
   return entry.value;
 }
 async function catalogMutation<T>(operation: Promise<T>) { const result = await operation; clearMovieWindows(); clearEpgCache(); return result; }
-function movieWindow(categoryId = '', offset = 0, search = '', anchor = '', sort: MovieSort = 'added-desc') {
+const seriesWindows = new Map<string, { expires: number; value: Promise<Page<VodItem>> }>();
+const seriesDetails = new Map<string, { expires: number; value: Promise<SeriesInfo> }>();
+const seriesDetailsPending = new Map<string, Promise<SeriesInfo>>();
+
+function catalogWindow(kind: 'vod' | 'series', categoryId = '', offset = 0, search = '', anchor = '', sort: MovieSort = 'added-desc') {
+  const windows = kind === 'vod' ? movieWindows : seriesWindows;
   const key = query({ category_id: categoryId, offset, limit: 120, search, anchor, sort });
-  const hit = movieWindows.get(key);
-  if (hit && hit.expires > Date.now()) { movieWindows.delete(key); movieWindows.set(key, hit); return hit.value; }
-  const value = request<Page<VodItem>>(`/api/xtream/vod/catalog?${key}`);
-  const entry = { expires: Date.now() + 5 * 60_000, value }; movieWindows.set(key, entry);
-  if (movieWindows.size > 6) movieWindows.delete(movieWindows.keys().next().value!);
-  void value.catch(() => { if (movieWindows.get(key) === entry) movieWindows.delete(key); });
+  const hit = windows.get(key);
+  if (hit && hit.expires > Date.now()) { windows.delete(key); windows.set(key, hit); return hit.value; }
+  const value = request<Page<VodItem>>(`/api/xtream/${kind}/catalog?${key}`).then(page => {
+    // An older backend can interpret /series/catalog as a series ID and return
+    // {item, episodes} with HTTP 200. Never cache or render that as a catalog.
+    if (!page || !Array.isArray(page.items) || !Number.isSafeInteger(page.total) || page.total < 0
+      || !Number.isSafeInteger(page.offset) || page.offset < 0) throw new Error('Invalid catalog response. Restart the IPTV backend and try again.');
+    return page;
+  });
+  const entry = { expires: Date.now() + 5 * 60_000, value }; windows.set(key, entry);
+  if (windows.size > 6) windows.delete(windows.keys().next().value!);
+  void value.catch(() => { if (windows.get(key) === entry) windows.delete(key); });
   return value;
 }
 
@@ -63,12 +74,29 @@ export const api = {
   liveSelection: () => request<LiveSelection>('/api/live/selection'),
   channels: (categoryId?: string, offset = 0, search = '') => request<Page<Channel>>(`/api/xtream/streams/live?${query({ category_id: categoryId, offset, limit: LIVE_PAGE_SIZE, search })}`),
   vodCategories: () => request<Category[]>('/api/xtream/vod/categories'),
-  movieWindow,
+  movieWindow: (category = '', offset = 0, search = '', anchor = '', sort: MovieSort = 'added-desc') => catalogWindow('vod', category, offset, search, anchor, sort),
+  seriesWindow: (category = '', offset = 0, search = '', anchor = '', sort: MovieSort = 'added-desc') => catalogWindow('series', category, offset, search, anchor, sort),
   vod: (categoryId?: string, offset = 0, search = '', limit = 60) => request<Page<VodItem>>(`/api/xtream/vod?${query({ category_id: categoryId, offset, limit, search })}`),
   vodInfo: (id: string) => request<VodItem>(`/api/xtream/vod/${encodeURIComponent(id)}`),
   seriesCategories: () => request<Category[]>('/api/xtream/series/categories'),
   series: (categoryId?: string, offset = 0, search = '', limit = 60) => request<Page<SeriesItem>>(`/api/xtream/series?${query({ category_id: categoryId, offset, limit, search })}`),
-  seriesInfo: (id: string) => request<{ item: SeriesItem; episodes: Episode[] }>(`/api/xtream/series/${encodeURIComponent(id)}`),
+  seriesInfo: (id: string) => {
+    const pending = seriesDetailsPending.get(id); if (pending) return pending;
+    const hit = seriesDetails.get(id);
+    if (hit && hit.expires > Date.now()) { seriesDetails.delete(id); seriesDetails.set(id, hit); return hit.value; }
+    seriesDetails.delete(id);
+    const value: Promise<SeriesInfo> = request<SeriesInfo>(`/api/xtream/series/${encodeURIComponent(id)}`).then(data => {
+      // An invalidation can occur while a provider response is still in flight.
+      if (seriesDetailsPending.get(id) === value) {
+        seriesDetailsPending.delete(id);
+        seriesDetails.set(id, { expires: Date.now() + 5 * 60_000, value });
+        if (seriesDetails.size > 8) seriesDetails.delete(seriesDetails.keys().next().value!);
+      }
+      return data;
+    }, error => { if (seriesDetailsPending.get(id) === value) seriesDetailsPending.delete(id); throw error; });
+    seriesDetailsPending.set(id, value);
+    return value;
+  },
   epg: (channelId: string, signal?: AbortSignal) => request<EpgNow>(`/api/epg/${encodeURIComponent(channelId)}`, signal ? { signal } : undefined),
   guide: (start: number, offset = 0, categoryId = '', search = '') => request<GuidePage>(`/api/guide?${query({ start, offset, category_id: categoryId, search })}`),
   favorites: () => request<Favorite[]>('/api/favorites'),

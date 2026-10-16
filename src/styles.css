@@ -469,3 +469,26 @@ div.movie-poster.image-fallback { font-size: 3rem; color: #a9c1dc }
 .movies-category-options button:focus { transform: none }
 .movies-category-options .selected-category { color: #79ddff; background: #1d344b }
 .movies-category-hint { margin: 1rem .7rem 0; color: var(--text-dim); font-size: .9rem }
+
+/* Series uses the Movies grid; only the episodic details surface is specialized. */
+.series-detail .series-hero { grid-template-columns: 6.5rem minmax(0, 1fr); gap: 1.4rem; padding-bottom: 1rem }
+.series-detail .series-cover { width: 6.5rem; height: 9.75rem }
+.series-detail .series-hero h1 { font-size: 1.85rem; line-height: 1.12; max-height: 4.2rem; overflow: hidden }
+.series-detail .series-hero p { margin: .5rem 0 .7rem; max-height: 2.8rem }
+.series-detail .detail-actions { gap: .7rem; margin-top: .6rem }
+.series-detail .detail-actions button { max-width: 45rem; overflow: hidden; white-space: nowrap; text-overflow: ellipsis }
+.series-detail .season-browser { grid-template-columns: 22% minmax(0, 1fr); padding-top: .7rem }
+.series-detail .season-list, .series-detail .episode-list { padding: .5rem .7rem; overflow-x: hidden; scroll-behavior: auto; overflow-anchor: none }
+.series-detail .season-list button:focus, .series-detail .episode-row:focus { transform: none }
+.series-detail .episode-list h2 { display: flex; align-items: center; justify-content: space-between; gap: .7rem; font-size: 1.1rem }
+.series-detail .episode-list h2 small { color: var(--text-dim); font-size: .8rem; font-weight: 400 }
+.series-detail .episode-row { grid-template-columns: 2.8rem minmax(0, 1fr) 1.2rem; gap: .8rem; padding: .8rem; min-height: 5.3rem; margin: .3rem 0; text-align: left }
+.series-detail .episode-row.with-thumbnail { grid-template-columns: 2.8rem 7.2rem minmax(0, 1fr) 1.2rem }
+.series-detail .episode-number { font-size: 1.2rem; color: var(--text-faint); text-align: center }
+.series-detail .episode-thumbnail { width: 7.2rem; height: 4.05rem; object-fit: cover; border-radius: .35rem }
+.series-detail .episode-copy { min-width: 0 }
+.series-detail .episode-copy strong { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; white-space: normal; font-size: 1.05rem; line-height: 1.2; overflow: hidden }
+.series-detail .episode-copy p { margin: .3rem 0; color: var(--text-dim); font-size: .82rem; line-height: 1.25; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical }
+.series-detail .episode-copy small { display: block; font-weight: 400; margin-top: .3rem }
+.series-detail .episode-copy .progress { margin-top: .4rem; height: .2rem }
+.series-empty { color: var(--text-dim); padding: 1rem 0; line-height: 1.5 }

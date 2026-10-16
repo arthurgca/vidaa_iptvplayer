@@ -42,7 +42,7 @@ describe('remote page jumps in long screens', () => {
   it('pages episode and season lists without changing the selected season or starting playback', async () => {
     const item = { id: 'show', name: 'Show', categoryId: '' };
     vi.spyOn(api, 'seriesCategories').mockResolvedValue([]);
-    vi.spyOn(api, 'series').mockResolvedValue({ offset: 0, limit: 60, total: 1, items: [item] });
+    vi.spyOn(api, 'seriesWindow').mockResolvedValue({ offset: 0, limit: 60, total: 1, items: [item] });
     vi.spyOn(api, 'seriesInfo').mockResolvedValue({ item, episodes: Array.from({ length: 32 }, (_, index) => ({ id: String(index), name: `Episode ${index}`, season: index < 16 ? 1 : 2, episode: index % 16 + 1 })) });
     await openHome(2);
     act(() => container.querySelector<HTMLButtonElement>('.poster-card')!.click()); await settle(); await settle(); await focused();

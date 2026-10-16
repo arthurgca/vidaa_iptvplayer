@@ -1,5 +1,5 @@
 import type { VodItem } from '../types.js';
-import { normalizeVod } from './normalizer.js';
+import { normalizeSeries, normalizeVod } from './normalizer.js';
 
 const indexes = new WeakMap<object, MovieIndex>();
 const searchable = (text: string) => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
@@ -16,17 +16,17 @@ export class MovieIndex {
   private searches = new Map<string, number[]>();
   private values: Array<{ added?: number; release?: number; rating?: number }> = [];
   private orders = new Map<string, number[]>();
-  constructor(raw: unknown) {
+  constructor(raw: unknown, kind: 'movies' | 'series' = 'movies') {
     const ids = new Map<string, number>();
     const memberships = new Map<string, Set<number>>();
     for (const row of Array.isArray(raw) ? raw : []) {
       if (!row || typeof row !== 'object') continue;
-      const item = normalizeVod([row])[0];
+      const item = (kind === 'series' ? normalizeSeries : normalizeVod)([row])[0];
       if (!item) continue;
       let index = ids.get(item.id);
       if (index === undefined) {
         index = this.items.length; ids.set(item.id, index); this.items.push(item); this.names.push(searchable(item.name));
-        const added = Number(row.added); const rating = Number(item.rating);
+        const added = Number(kind === 'series' ? row.last_modified : row.added); const rating = Number(item.rating);
         this.values.push({ added: added > 0 && Number.isFinite(added) ? added : undefined,
           release: dateValue(row.release_date ?? row.releasedate ?? row.releaseDate ?? row.year), rating: rating > 0 && rating <= 10 ? rating : undefined });
       }
@@ -94,5 +94,13 @@ export function movieIndex(raw: unknown) {
   if (!raw || typeof raw !== 'object') return new MovieIndex([]);
   let index = indexes.get(raw);
   if (!index) { index = new MovieIndex(raw); indexes.set(raw, index); }
+  return index;
+}
+
+const seriesIndexes = new WeakMap<object, MovieIndex>();
+export function seriesIndex(raw: unknown) {
+  if (!raw || typeof raw !== 'object') return new MovieIndex([]);
+  let index = seriesIndexes.get(raw);
+  if (!index) { index = new MovieIndex(raw, 'series'); seriesIndexes.set(raw, index); }
   return index;
 }

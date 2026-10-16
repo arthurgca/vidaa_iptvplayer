@@ -56,8 +56,15 @@ export async function xtream(action?: string, params: Record<string, string> = {
     if (!response.ok) throw new Error(`Provider returned HTTP ${response.status}.`);
     const body = await response.json();
     // Xtream may report expired authentication as HTTP 200 with an object instead of a list.
-    if (['get_vod_streams', 'get_vod_categories', 'get_live_streams', 'get_live_categories'].includes(action || '') && !Array.isArray(body)) throw new Error(`The provider returned invalid ${action?.includes('vod') ? 'movie' : 'live'} catalog data.`);
-    if (!candidate && startedInGeneration === cacheGeneration) cache.set(key, { value: body, expires: Date.now() + (TTL[action || ''] || 60_000) });
+    if (['get_vod_streams', 'get_vod_categories', 'get_live_streams', 'get_live_categories', 'get_series', 'get_series_categories'].includes(action || '') && !Array.isArray(body)) throw new Error(`The provider returned invalid ${action?.includes('vod') ? 'movie' : action?.includes('series') ? 'series' : 'live'} catalog data.`);
+    if (action === 'get_series_info' && (!body || typeof body !== 'object' || !['info', 'episodes', 'seasons'].some(field => field in body))) throw new Error('The provider returned invalid series details.');
+    if (!candidate && startedInGeneration === cacheGeneration) {
+      for (const [oldKey, entry] of cache) if (entry.expires <= Date.now()) cache.delete(oldKey);
+      cache.set(key, { value: body, expires: Date.now() + (TTL[action || ''] || 60_000) });
+      // Browsing many shows must not retain every large response for six hours.
+      const details = [...cache.keys()].filter(value => value.includes('action=get_series_info&'));
+      if (details.length > 24) cache.delete(details[0]!);
+    }
     return body;
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') throw new Error('The IPTV provider timed out.');

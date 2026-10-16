@@ -13,9 +13,18 @@ export function ErrorState({ error, retry }: { error: string; retry?: () => void
   }, [error]);
   return <div className="state-panel error"><p>{error}</p>{retry && <Focusable focusKey="error:retry" group="errors" index={0} onSelect={retry}>{t('common.retry')}</Focusable>}</div>;
 }
+// Real provider episode artwork contains broken URLs. Bound negative caching so
+// returning from playback does not retry every missing thumbnail immediately.
+const failedArtwork = new Map<string, number>();
 export function Image({ src, alt, className = '' }: { src?: string; alt: string; className?: string }) {
-  const [failed, setFailed] = useState<string>();
-  return src && failed !== src ? <img src={src} alt={alt} className={className} loading="lazy" decoding="async" onError={() => setFailed(src)} /> : <div className={`image-fallback ${className}`} aria-label={alt}>{alt.slice(0, 1).toUpperCase()}</div>;
+  const [, redraw] = useState(0);
+  const expires = src ? failedArtwork.get(src) : undefined;
+  if (src && expires && expires <= Date.now()) failedArtwork.delete(src);
+  return src && !failedArtwork.has(src) ? <img src={src} alt={alt} className={className} loading="lazy" decoding="async" onError={() => {
+    failedArtwork.delete(src); failedArtwork.set(src, Date.now() + 60_000);
+    if (failedArtwork.size > 256) failedArtwork.delete(failedArtwork.keys().next().value!);
+    redraw(value => value + 1);
+  }} /> : <div className={`image-fallback ${className}`} aria-label={alt}>{alt.slice(0, 1).toUpperCase()}</div>;
 }
 export function Progress({ value }: { value: number }) { return <div className="progress"><span style={{ width: `${Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : 0}%` }} /></div>; }
 export function formatTime(timestamp?: number, locale = activeLocaleTag()) { return timestamp ? new Date(timestamp).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }) : ''; }

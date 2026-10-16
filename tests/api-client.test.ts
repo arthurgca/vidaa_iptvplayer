@@ -25,3 +25,12 @@ it('shares movie window requests, keeps six windows, evicts failures and invalid
   await expect(api.movieWindow('broken')).rejects.toThrow('offline');
   await api.movieWindow('broken'); expect(fetch).toHaveBeenCalledTimes(12);
 });
+
+it('rejects an old backend detail response at the Series catalog URL and retries without caching it', async () => {
+  const fetch = vi.spyOn(globalThis, 'fetch')
+    .mockResolvedValueOnce(new Response(JSON.stringify({ item: { id: 'catalog' }, episodes: [] })))
+    .mockResolvedValueOnce(new Response(JSON.stringify({ items: [{ id: 'show' }], total: 1, offset: 0, limit: 120 })));
+  await expect(api.seriesWindow()).rejects.toThrow('Invalid catalog response');
+  expect((await api.seriesWindow()).items[0]?.id).toBe('show');
+  expect(fetch).toHaveBeenCalledTimes(2);
+});

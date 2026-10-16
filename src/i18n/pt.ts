@@ -2,6 +2,14 @@ import type { Dictionary } from './en';
 
 /** Brazilian Portuguese. Kept short where the 10-foot layout is tight (toggles, overlay hints). */
 export const pt: Dictionary = {
+  'series.count': '{count} séries',
+  'series.unavailable': 'Não foi possível carregar as séries. Tente novamente ou escolha uma categoria.',
+  'series.detailsUnavailable': 'Não foi possível carregar os episódios. Tente novamente ou volte ao catálogo.',
+  'series.noEpisodes': 'O provedor não disponibilizou temporadas ou episódios.',
+  'series.emptySeason': 'O provedor ainda não disponibilizou episódios para esta temporada.',
+  'series.unnumberedSeason': 'Temporada sem número',
+  'series.episode': 'Episódio',
+  'series.episodeCount': '{count} episódios',
   'movies.searchScope': 'Buscar em {category}',
   'movies.count': '{count} filmes',
   'movies.emptyHint': 'Nenhum título em {category}. Altere a busca ou abra Categorias.',

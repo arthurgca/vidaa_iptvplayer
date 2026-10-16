@@ -16,7 +16,7 @@ export function continuing(history: HistoryItem[], type?: 'movie' | 'series') {
 export function historyTitle(row: HistoryItem) {
   if (row.type !== 'series') return row.item.name;
   const episode = row.item as Episode;
-  return `${row.series?.name ? `${row.series.name} · ` : ''}S${String(episode.season).padStart(2, '0')}E${String(episode.episode).padStart(2, '0')} · ${episode.name}`;
+  return `${row.series?.name ? `${row.series.name} · ` : ''}S${episode.season == null ? '—' : String(episode.season).padStart(2, '0')}E${episode.episode == null ? '—' : String(episode.episode).padStart(2, '0')} · ${episode.name}`;
 }
 
 export function historyImage(row: HistoryItem) {

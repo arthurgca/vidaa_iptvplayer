@@ -11,7 +11,7 @@ import type { Category, Channel, Favorite, HistoryItem, SeriesItem, VodItem } fr
 import { APP_VERSION } from './version.js';
 import { clearXtreamCache, streamUrl, validateAccount, xtream } from './xtream/client.js';
 import { normalizeCategories, normalizeChannels, normalizeSeries, normalizeSeriesInfo, normalizeVod, normalizeVodInfo } from './xtream/normalizer.js';
-import { movieIndex } from './xtream/movieIndex.js';
+import { movieIndex, seriesIndex } from './xtream/movieIndex.js';
 
 await initConfig();
 await initStore();
@@ -65,7 +65,8 @@ async function vod(categoryId?: string): Promise<VodItem[]> {
 async function series(categoryId?: string): Promise<SeriesItem[]> {
   if (library.contentCleared()) return [];
   if (getConfig().demoMode) return categoryId ? demoSeries.filter((item) => item.categoryId === categoryId) : demoSeries;
-  return normalizeSeries(await xtream('get_series', categoryId ? { category_id: categoryId } : {}));
+  const items = seriesIndex(await xtream('get_series')).items;
+  return categoryId ? items.filter(item => item.categoryId === categoryId) : items;
 }
 
 app.get('/health', (_req, res) => res.json({ status: 'ok', version: APP_VERSION }));
@@ -144,6 +145,13 @@ app.get('/api/xtream/vod/:id', asyncRoute(async (req, res) => {
 }));
 app.get('/api/xtream/series/categories', asyncRoute(async (_req, res) => res.json(await categories('series'))));
 app.get('/api/xtream/series', asyncRoute(async (req, res) => res.json(page(await series(stringParam(req.query.category_id) || undefined), req))));
+// Backend windows over the full cached provider catalog, not Xtream pagination.
+app.get('/api/xtream/series/catalog', asyncRoute(async (req, res) => {
+  const raw = library.contentCleared() ? [] : getConfig().demoMode
+    ? demoSeries.map(item => ({ ...item, series_id: item.id, category_id: item.categoryId, cover: item.poster }))
+    : await xtream('get_series');
+  res.json(seriesIndex(raw).page(stringParam(req.query.category_id), stringParam(req.query.search), Number(req.query.offset) || 0, Number(req.query.limit) || 120, stringParam(req.query.anchor), stringParam(req.query.sort) || 'added-desc'));
+}));
 app.get('/api/xtream/series/:id', asyncRoute(async (req, res) => {
   if (library.contentCleared()) { res.status(404).end(); return; }
   const id = stringParam(req.params.id);
@@ -151,7 +159,7 @@ app.get('/api/xtream/series/:id', asyncRoute(async (req, res) => {
     const item = demoSeries.find((entry) => entry.id === id); if (!item) { res.status(404).end(); return; }
     res.json({ item, episodes: demoEpisodes[id] || [] }); return;
   }
-  res.json(normalizeSeriesInfo(await xtream('get_series_info', { series_id: id }), id));
+  res.json(normalizeSeriesInfo(await xtream('get_series_info', { series_id: id }), id, (await series()).find(item => item.id === id)));
 }));
 app.get('/api/epg/:channelId', asyncRoute(async (req, res) => {
   const item = (await live()).find((channel) => channel.id === req.params.channelId);

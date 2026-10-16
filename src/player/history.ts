@@ -9,7 +9,14 @@ export function resumePosition(row?: Pick<HistoryItem, 'position' | 'duration' |
 }
 
 export function orderedEpisodes(episodes: Episode[]) {
-  return [...episodes].sort((a, b) => a.season - b.season || a.episode - b.episode);
+  const groups = new Map<string, number>();
+  episodes.forEach(episode => { const key = episode.seasonId ?? String(episode.season ?? 'unknown'); if (!groups.has(key)) groups.set(key, groups.size); });
+  // Explicit provider-index ties also work on older TV engines without stable Array.sort.
+  return episodes.map((episode, index) => ({ episode, index })).sort((a, b) =>
+    ((a.episode.season ?? Infinity) - (b.episode.season ?? Infinity) || 0)
+    || (groups.get(a.episode.seasonId ?? String(a.episode.season ?? 'unknown'))! - groups.get(b.episode.seasonId ?? String(b.episode.season ?? 'unknown'))!)
+    || ((a.episode.episode ?? Infinity) - (b.episode.episode ?? Infinity) || 0)
+    || a.index - b.index).map(row => row.episode);
 }
 
 export function nextEpisode(episodes: Episode[], id: string) {

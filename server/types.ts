@@ -45,8 +45,10 @@ export interface SeriesItem extends Omit<VodItem, 'extension'> {}
 export interface Episode {
   id: string;
   name: string;
-  season: number;
-  episode: number;
+  season: number | null;
+  episode: number | null;
+  seasonId?: string;
+  thumbnail?: string;
   extension?: string;
   duration?: string;
   description?: string;
@@ -62,3 +64,6 @@ export interface Program {
 
 export interface Favorite { type: MediaKind; id: string; item: Channel | VodItem | SeriesItem; addedAt: number }
 export interface HistoryItem { type: MediaKind; id: string; item: Channel | VodItem | Episode; position: number; duration: number; watchedAt: number; checkpointAt?: number; completed?: boolean; series?: SeriesItem }
+
+export interface Season { id: string; number?: number; name?: string }
+export interface SeriesInfo { item: SeriesItem; episodes: Episode[]; seasons?: Season[] }
