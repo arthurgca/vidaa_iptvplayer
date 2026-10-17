@@ -4,19 +4,21 @@ import { api } from '../api/client';
 import { isEpgFresh, loadEpg, peekEpg, programProgress } from '../api/epg';
 import { Empty, formatTime, Image, Progress, Spinner } from '../components/common';
 import { SearchField } from '../components/SearchField';
+import { useBrowseMenu } from '../components/BrowseMenu';
 import { ChevronDownIcon } from '../components/icons';
 import { useAsync } from '../hooks/useAsync';
 import type { CatalogQuery } from '../catalogQuery';
 import { useTranslate } from '../i18n/I18nContext';
 import { Focusable, useFocusManager } from '../navigation/FocusContext';
 import type { ScrollPosition } from '../navigation/scroll';
-import { remoteAction, type RemoteAction } from '../platform/remote';
+import { isTextDeletion, remoteAction, type RemoteAction } from '../platform/remote';
 import type { Channel, EpgNow, Favorite, Program } from '../types';
 
 interface LiveTVProps {
   query: CatalogQuery; setQuery: (query: CatalogQuery) => void;
   restoreFocus?: string; scroll?: ScrollPosition[]; lastTuned?: string;
   guide: () => void; play: (channel: Channel, channels: Channel[]) => void;
+  home?: () => void;
 }
 const CATEGORIES = 'live:categories', SEARCH = 'live:search', GUIDE = 'live:guide', FAVORITE = 'live:favorite';
 const keyFor = (id: string) => `live:channel:${id}`;
@@ -45,7 +47,7 @@ function ChannelRow({ channel, index, number, rowHeight, selected, tuned, favori
   </button>;
 }
 
-export function LiveTV({ query, setQuery, restoreFocus, scroll, lastTuned, play, guide }: LiveTVProps) {
+export function LiveTV({ query, setQuery, restoreFocus, scroll, lastTuned, play, guide, home }: LiveTVProps) {
   const t = useTranslate(); const focus = useFocusManager();
   const categories = useAsync(api.liveCategories, []); const catalog = useAsync(api.liveCatalog, []);
   const viewport = useRef<HTMLDivElement>(null);
@@ -187,7 +189,14 @@ export function LiveTV({ query, setQuery, restoreFocus, scroll, lastTuned, play,
     const timer = window.setTimeout(() => focus.focus(`live:selector:${panelCursor.current}`) || focus.focus('live:selector:0'), 0);
     return () => { clearTimeout(timer); focus.setScope('root'); };
   }, [panel, categories.loading, categories.error]);
+  const browse = useBrowseMenu('live', [
+    ...(home ? [{ id: 'home', label: t('browse.home'), select: home }] : []),
+    { id: 'categories', label: t('common.categories'), select: showPanel },
+    { id: 'search', label: t('browse.search'), select: () => { focus.focus(SEARCH); focus.select(); } },
+    { id: 'guide', label: t('guide.title'), select: guide }
+  ]);
   const handle = (action: RemoteAction) => {
+    if (!panel && browse.handle(action)) { pendingFocus.current = false; return true; }
     if (panel) {
       if (action === 'BACK') closePanel();
       else if (action === 'SELECT') focus.select();
@@ -227,7 +236,7 @@ export function LiveTV({ query, setQuery, restoreFocus, scroll, lastTuned, play,
     const listener = (event: KeyboardEvent) => {
       const action = remoteAction(event); if (!action) return;
       if (event.target instanceof HTMLInputElement) {
-        if (action === 'BACK' && (event.key === 'Backspace' || event.keyCode === 8)) { event.stopImmediatePropagation(); return; }
+        if (action === 'BACK' && isTextDeletion(event)) { event.stopImmediatePropagation(); return; }
         if (action === 'SELECT' || action === 'BACK') { event.preventDefault(); event.stopImmediatePropagation(); event.target.blur(); if (action === 'SELECT') enterResults.current(); else focus.focus(SEARCH); }
         return;
       }
@@ -263,6 +272,7 @@ export function LiveTV({ query, setQuery, restoreFocus, scroll, lastTuned, play,
         <Focusable focusKey={FAVORITE} group="live-info" index={0} neighbors={{ left: keyFor(selected.id), up: GUIDE, down: FAVORITE, right: FAVORITE }} onSelect={toggleFavorite} className="epg-favorite">{saving ? t('library.saving') : favorite ? t('favorite.short') : t('favorite.add')}</Focusable>
       </> : <Empty>{t('live.selectChannel')}</Empty>}</aside>
     </div>
+    {browse.menu}
     {panel && <div className="live-category-overlay"><section className="live-category-dialog" role="dialog" aria-modal="true" aria-label={t('common.categories')}>
       <header><h2>{t('common.categories')}</h2><Focusable focusKey="live:selector:close" group="live-selector" index={-1} onFocus={() => { panelCursor.current = -1; setPanelIndex(-1); }} onSelect={closePanel}>{t('live.close')}</Focusable></header>
       <div className="live-category-options">

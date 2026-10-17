@@ -528,6 +528,8 @@ div.movie-poster.image-fallback { font-size: 3rem; color: #a9c1dc }
 .movies-category-options button:focus { transform: none }
 .movies-category-options .selected-category { color: #79ddff; background: #1d344b }
 .movies-category-hint { margin: 1rem .7rem 0; color: var(--text-dim); font-size: .9rem }
+.browse-menu { position: fixed }
+.browse-menu-dialog { height: auto; max-height: 80% }
 
 /* Series uses the Movies grid; only the episodic details surface is specialized. */
 .series-detail .series-hero { grid-template-columns: 6.5rem minmax(0, 1fr); gap: 1.4rem; padding-bottom: 1rem }

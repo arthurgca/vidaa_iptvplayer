@@ -97,6 +97,7 @@ function AppRouter({ language, setLanguage }: RouterProps) {
     if (current?.name === 'settings' && settingsAction.current?.(action)) return;
     if (current?.name === 'recent' && recentAction.current?.(action)) return;
     if (current?.name === 'player' && playerAction.current) { if (playerAction.current(action)) return; }
+    if (action === 'OPTIONS' && current?.name === 'home') { focus.focus('home:live'); return; }
     if (action === 'CHANNEL_UP' || action === 'CHANNEL_DOWN') {
       const direction = action === 'CHANNEL_UP' ? -1 : 1;
       if (current?.name === 'live') focus.jump('live-channels', direction * 5);
@@ -154,11 +155,11 @@ function AppRouter({ language, setLanguage }: RouterProps) {
   let screen: preact.ComponentChildren;
   switch (current.name) {
     case 'home': screen = <Home configuration={homeConfiguration} open={openHomeRoute} movie={(item) => push('movie-details', item)} series={(item) => push('series-details', item)} resume={openRecent} favorite={openFavorite} restoreFocus={current.restoreFocus} scroll={current.scroll} />; break;
-    case 'live': screen = <LiveTV query={catalogs.live} setQuery={(query) => setCatalog('live', query)} restoreFocus={current.restoreFocus} scroll={current.scroll} lastTuned={playingLiveChannel.current} guide={() => push('guide')} play={(channel, channels) => { playingLiveChannel.current = channel.id; push('player', { type: 'live', id: channel.id, item: channel, extension: channel.extension, channels } satisfies Playable); }} />; break;
+    case 'live': screen = <LiveTV home={replaceHome} query={catalogs.live} setQuery={(query) => setCatalog('live', query)} restoreFocus={current.restoreFocus} scroll={current.scroll} lastTuned={playingLiveChannel.current} guide={() => push('guide')} play={(channel, channels) => { playingLiveChannel.current = channel.id; push('player', { type: 'live', id: channel.id, item: channel, extension: channel.extension, channels } satisfies Playable); }} />; break;
     case 'guide': screen = <Guide category={catalogs.live.category} play={(channel, channels) => push('player', { type: 'live', id: channel.id, item: channel, extension: channel.extension, channels } satisfies Playable)} />; break;
-    case 'movies': screen = <MediaCatalog kind="movies" query={catalogs.movies} setQuery={(query) => setCatalog('movies', query)} restoreFocus={current.restoreFocus} scroll={current.scroll} open={(item) => push('movie-details', item)} />; break;
+    case 'movies': screen = <MediaCatalog home={replaceHome} kind="movies" query={catalogs.movies} setQuery={(query) => setCatalog('movies', query)} restoreFocus={current.restoreFocus} scroll={current.scroll} open={(item) => push('movie-details', item)} />; break;
     case 'movie-details': screen = <MovieDetails seed={current.data as VodItem} play={playMovie} />; break;
-    case 'series': screen = <MediaCatalog kind="series" query={catalogs.series} setQuery={(query) => setCatalog('series', query)} restoreFocus={current.restoreFocus} scroll={current.scroll} open={(item) => push('series-details', item)} />; break;
+    case 'series': screen = <MediaCatalog home={replaceHome} kind="series" query={catalogs.series} setQuery={(query) => setCatalog('series', query)} restoreFocus={current.restoreFocus} scroll={current.scroll} open={(item) => push('series-details', item)} />; break;
     case 'series-details': screen = <SeriesDetails key={(current.data as SeriesItem).id} seed={current.data as SeriesItem} play={playEpisode} back={back} restoreFocus={current.restoreFocus} scroll={current.scroll} context={current.seriesContext} saveContext={seriesContext => setRoutes(stack => stack.map((route, i) => i === stack.length - 1 ? { ...route, seriesContext } : route))} />; break;
     case 'favorites': screen = <Favorites open={openFavorite} />; break;
     case 'recent': screen = <Recent open={openRecent} back={back} restoreFocus={current.restoreFocus} scroll={current.scroll} registerAction={handler => { recentAction.current = handler; }} cancelPendingOpen={() => { recentRequest.current++; }} />; break;
@@ -169,5 +170,6 @@ function AppRouter({ language, setLanguage }: RouterProps) {
   // The hint is fixed to the bottom of the safe area, so the screen underneath reserves a band for it.
   const backHint = current.name !== 'home' && current.name !== 'player';
   const pageHint = PAGINATED_ROUTES.includes(current.name) || Boolean(PAGE_GROUPS[current.name]);
-  return <div className={`app-shell${backHint ? ' with-hint' : ''}`}>{screen}{backHint && <div className="back-hint"><RemoteHint id="app.back" />{(current.name === 'movies' || current.name === 'series') ? <> · <RemoteHint id="movies.pageHint" /></> : current.name === 'live' ? <> · <RemoteHint id="app.channelNavigation" /></> : pageHint && <> · <RemoteHint id="app.pageNavigation" /></>}</div>}{debug &&<div className="debug-overlay">route: {current.name}<br/>focus: {focusedKey || 'none'}<br/>key: {lastKey || 'none'}<br/>viewport: {window.innerWidth}x{window.innerHeight} dpr:{window.devicePixelRatio || 1}</div>}</div>;
+  const browseHint = ['live', 'movies', 'series'].includes(current.name);
+  return <div className={`app-shell${backHint ? ' with-hint' : ''}`}>{screen}{backHint && <div className="back-hint"><RemoteHint id="app.back" />{(current.name === 'movies' || current.name === 'series') ? <> · <RemoteHint id="movies.pageHint" /></> : current.name === 'live' ? <> · <RemoteHint id="app.channelNavigation" /></> : pageHint && <> · <RemoteHint id="app.pageNavigation" /></>}{browseHint && <> · {t('browse.optionsHint')}</>}</div>}{debug &&<div className="debug-overlay">route: {current.name}<br/>focus: {focusedKey || 'none'}<br/>key: {lastKey || 'none'}<br/>viewport: {window.innerWidth}x{window.innerHeight} dpr:{window.devicePixelRatio || 1}</div>}</div>;
 }

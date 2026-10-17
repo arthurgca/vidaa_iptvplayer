@@ -49,7 +49,8 @@ describe('Series virtual grid and remote', () => {
   });
   it('lands on artwork, clamps row edges, reaches beyond old pages and bounds DOM across deep navigation', async () => {
     await mount(); expect(focus.focused).toBe('series:item:0');
-    await key('ArrowLeft'); expect(focus.focused).toBe('series:item:0');
+    await key('ArrowLeft'); expect(focus.focused).toBe('series:menu:categories');
+    await key('Escape'); expect(focus.focused).toBe('series:item:0');
     for (let i = 0; i < 8; i++) await key('ArrowRight'); expect(focus.focused).toBe('series:item:5');
     for (let i = 0; i < 30; i++) await key('PageDown');
     expect(Number(focus.focused.split(':').pop())).toBeGreaterThan(120);
