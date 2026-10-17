@@ -7,14 +7,15 @@ import { Focusable, useFocusManager, useFocusProxy } from '../navigation/FocusCo
 import type { RemoteAction } from '../platform/remote';
 import type { AppConfig } from '../types';
 import { APP_VERSION } from '../version';
+import { HomeSettings } from './HomeSettings';
 
-const sections = ['general', 'provider', 'playback', 'data'] as const;
+const sections = ['general', 'provider', 'playback', 'data', 'home'] as const;
 type Section = typeof sections[number];
 type Field = 'language' | 'xtreamBaseUrl' | 'xtreamUsername' | 'xtreamPassword' | 'xmltvUrl' | 'demoMode' | 'preferredLiveFormat' | 'autoplayLive' | 'rememberLastChannel' | 'epgRefreshHours';
 const fields: Field[] = ['language', 'xtreamBaseUrl', 'xtreamUsername', 'xtreamPassword', 'xmltvUrl', 'demoMode', 'preferredLiveFormat', 'autoplayLive', 'rememberLastChannel', 'epgRefreshHours'];
 const controlKeys: Record<Section, string[]> = {
   general: ['language'], provider: ['xtreamBaseUrl', 'xtreamUsername', 'xtreamPassword', 'demoMode', 'test'],
-  playback: ['preferredLiveFormat', 'autoplayLive', 'rememberLastChannel'], data: ['xmltvUrl', 'epgRefreshHours', 'refresh', 'clear-content', 'clear-all']
+  playback: ['preferredLiveFormat', 'autoplayLive', 'rememberLastChannel'], data: ['xmltvUrl', 'epgRefreshHours', 'refresh', 'clear-content', 'clear-all'], home: ['home:continueWatching', 'home:restore']
 };
 const key = (value: string) => `settings:${value}`;
 type Choice = { value: string; label: string };
@@ -60,11 +61,12 @@ function SettingsDialog({ dialog, close }: { dialog: Dialog; close: () => void }
 }
 
 interface SettingsProps {
+  updated?: (value: AppConfig) => void;
   firstRun?: boolean; language: Language; setLanguage: (language: Language) => void; saved: () => void; cleared: () => void;
   leave?: () => void; registerAction?: (handler: ((action: RemoteAction) => boolean) | null) => void;
 }
 
-export function Settings({ firstRun = false, language, setLanguage, saved, cleared, leave, registerAction }: SettingsProps) {
+export function Settings({ firstRun = false, language, setLanguage, saved, cleared, leave, registerAction, updated }: SettingsProps) {
   const t = useTranslate(); const focus = useFocusManager();
   const [config, setConfig] = useState<AppConfig>(); const [baseline, setBaseline] = useState<AppConfig>();
   const [section, setSection] = useState<Section>(firstRun ? 'provider' : 'general');
@@ -89,6 +91,9 @@ export function Settings({ firstRun = false, language, setLanguage, saved, clear
   const edits: Partial<AppConfig> = {};
   if (config && baseline) for (const name of fields) {
     if (!managed(name) && config[name] !== baseline[name]) (edits as Record<string, unknown>)[name] = config[name];
+  }
+  if (config && baseline && JSON.stringify(config.homePreferences ?? null) !== JSON.stringify(baseline.homePreferences ?? null)) {
+    edits.homePreferences = config.homePreferences ?? null; edits.homeProviderKey = baseline.homeProviderKey;
   }
   const dirty = Object.keys(edits).length > 0;
   useEffect(() => {
@@ -132,6 +137,14 @@ export function Settings({ firstRun = false, language, setLanguage, saved, clear
       return true;
     }
     const index = sequence.indexOf(focus.focused);
+    if (section === 'home' && focus.focused.startsWith('settings:home:')) {
+      if (remote === 'NAV_UP') focus.move('up');
+      if (remote === 'NAV_DOWN') focus.move('down');
+      if (remote === 'NAV_LEFT') focus.move('left');
+      if (remote === 'NAV_RIGHT') focus.move('right');
+      if (remote === 'CHANNEL_UP' || remote === 'CHANNEL_DOWN') focus.page(remote === 'CHANNEL_UP' ? -1 : 1, ['settings-controls']);
+      return true;
+    }
     if (index >= 0) {
       if (index < controls.length) lastControl.current[section] = focus.focused;
       if (focus.focused === key('save') || focus.focused === key('exit')) {
@@ -169,7 +182,7 @@ export function Settings({ firstRun = false, language, setLanguage, saved, clear
   const save = () => {
     if (!dirty || !validUrls()) return;
     void run('save', async () => {
-      const next = await api.saveConfig({ ...(!config.languageConfigured ? { language: config.language } : {}), ...edits }); setConfig(next); setBaseline(next); setLanguage(next.language); setMessage(t('settings.ui.savedHelp'));
+      const next = await api.saveConfig({ ...(!config.languageConfigured ? { language: config.language } : {}), ...edits }); setConfig(next); setBaseline(next); setLanguage(next.language); updated?.(next); setMessage(t('settings.ui.savedHelp'));
       if (firstRun && next.configured) saved();
     }, t('settings.ui.saveError'));
   };
@@ -194,7 +207,7 @@ export function Settings({ firstRun = false, language, setLanguage, saved, clear
       choices: [{ value: 'cancel', label: t('settings.ui.cancel') }, { value: 'delete', label: t('settings.ui.confirmDelete') }], choose: value => {
         setDialog(undefined); if (value !== 'delete') return;
         void run(scope, async () => {
-          const next = await (scope === 'all' ? api.clearAllData() : api.clearData()); setConfig(next); setBaseline(next); cleared();
+          const next = await (scope === 'all' ? api.clearAllData() : api.clearData()); setConfig(next); setBaseline(next); updated?.(next); cleared();
           setMessage(t(scope === 'all' ? 'settings.ui.clearAllOk' : 'settings.ui.clearOk'));
         }, t('settings.ui.operationError'));
       } });
@@ -219,7 +232,11 @@ export function Settings({ firstRun = false, language, setLanguage, saved, clear
     <nav className="settings-tabs" aria-label={t('settings.title')}>{sections.map((value, index) => <Focusable key={value} focusKey={key(`tab:${value}`)} group="settings-tabs" index={index} orientation="horizontal" className={value === section ? 'settings-tab selected' : 'settings-tab'} onSelect={() => switchSection(value)}>{t(`settings.ui.${value}`)}</Focusable>)}</nav>
     <form className="settings-form" onSubmit={event => event.preventDefault()}>
       <div className="settings-pane" ref={pane} key={section} aria-label={t(`settings.ui.${section}`)}>
-        <h2>{t(`settings.ui.${section}`)}</h2><p className="settings-section-help">{t(`settings.ui.${section === 'general' ? 'generalHelp' : section === 'provider' ? 'providerHelp' : section === 'playback' ? 'playbackHelp' : 'dataHelp'}`)}</p>
+        <h2>{t(`settings.ui.${section}`)}</h2>{section !== 'home' && <p className="settings-section-help">{t(`settings.ui.${section === 'general' ? 'generalHelp' : section === 'provider' ? 'providerHelp' : section === 'playback' ? 'playbackHelp' : 'dataHelp'}`)}</p>}
+        {section === 'home' && <HomeSettings key={baseline?.homeProviderKey} value={config.homePreferences ?? null} busy={Boolean(busy)} locked={!config.configured || ['xtreamBaseUrl', 'xtreamUsername', 'xtreamPassword', 'demoMode'].some(name => name in edits)} change={value => {
+          if (busyRef.current) return;
+          setConfig(previous => previous ? { ...previous, homePreferences: value } : previous); setMessage(''); setError('');
+        }} />}
         {section === 'general' && <>{select('language', t('settings.language'), LANGUAGES.map(option => ({ ...option })))}<p className="app-version">{serverVersion === APP_VERSION ? t('settings.version', { version: APP_VERSION }) : t('settings.versionMismatch', { app: APP_VERSION, server: serverVersion })}</p></>}
         {section === 'provider' && <>{input('xtreamBaseUrl', t('settings.server'))}{input('xtreamUsername', t('settings.username'))}{input('xtreamPassword', t('settings.password'), config.passwordConfigured ? t('settings.ui.passwordHelp') : undefined)}{toggle('demoMode', t('settings.demoMode'), t('settings.ui.demoHelp'))}<div className="settings-inline-action">{button('test', t('settings.test'), test)}</div></>}
         {section === 'playback' && <>{select('preferredLiveFormat', t('settings.liveFormat'), [{ value: 'auto', label: t('settings.liveFormat.auto') }, { value: 'hls', label: 'HLS' }, { value: 'ts', label: 'MPEG-TS' }])}{toggle('autoplayLive', t('settings.autoplayLive'))}{toggle('rememberLastChannel', t('settings.rememberChannel'))}</>}

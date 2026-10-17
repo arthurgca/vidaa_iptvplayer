@@ -244,6 +244,18 @@ div.poster { min-height: 8rem }
 .settings-choice { display: flex; justify-content: space-between; flex: none; padding: .8rem 1rem; background: var(--surface-2) }
 .settings-choice.selected { color: var(--focus); border-color: var(--line-strong) }
 .settings-dialog-close { position: absolute; right: .6rem; top: .4rem; color: var(--text-dim); background: transparent; border: 0; font-size: 1.5rem }
+.home-settings-controls { display: grid; grid-template-columns: minmax(0, 1fr); gap: .5rem; max-width: 65rem; padding: .3rem }
+.home-setting-item { min-width: 0 }
+.home-setting-item .settings-value { text-align: left; gap: 1rem }
+.home-setting-item .settings-value > span:first-child { min-width: 0; flex: 1 }
+.home-setting-item strong { display: block; overflow-wrap: break-word; word-break: break-word; line-height: 1.35 }
+.home-setting-item small { display: block; margin-top: .2rem; font-size: .78rem; color: var(--text-dim) }
+.home-setting-item .settings-switch { flex: none }
+.home-setting-item .enabled { border-color: var(--accent); background: var(--accent-soft) }
+.home-settings-controls.ordering { grid-template-columns: minmax(0, 1fr) 8rem 8rem }
+.ordering .home-setting-item { grid-column: 1 / -1 }
+.ordering .home-setting-item.category { grid-column: auto }
+.home-setting-item.move .settings-value { height: 100%; justify-content: center; text-align: center }
 .app-version { padding-top: 1rem; color: var(--text-faint); font-size: .85rem; font-variant-numeric: tabular-nums }
 
 /* ---- Player -------------------------------------------------------------- */

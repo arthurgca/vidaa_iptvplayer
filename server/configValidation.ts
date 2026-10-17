@@ -1,6 +1,7 @@
 import type { AppConfig } from './types.js';
-import { isLanguage, managedSettings } from './config.js';
+import { getConfig, isLanguage, managedSettings } from './config.js';
 import { normalizeBaseUrl } from './xtream/client.js';
+import { homeProviderKey, validateHomePreferences } from './homePreferences.js';
 
 /** Errors never echo submitted credentials or URLs. */
 export function configUpdate(body: unknown): Partial<AppConfig> {
@@ -25,6 +26,12 @@ export function configUpdate(body: unknown): Partial<AppConfig> {
     }
     if (key === 'xtreamPassword' && value === '') continue;
     result[key] = value;
+  }
+  if ('homePreferences' in body) {
+    const input = body as Record<string, unknown>;
+    if (input.homeProviderKey !== homeProviderKey(getConfig())) throw new Error('Provider changed. Reopen Settings before saving Home.');
+    result.homePreferences = validateHomePreferences(input.homePreferences);
+    result.homeProviderKey = input.homeProviderKey;
   }
   return result;
 }

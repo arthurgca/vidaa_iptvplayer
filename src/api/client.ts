@@ -1,8 +1,9 @@
 import type { Language } from '../i18n';
 import { clearEpgCache } from './epg';
+import type { HomeCatalog, HomeConfiguration } from '../homePreferences';
 import type { AppConfig, Category, Channel, EpgNow, Favorite, HistoryItem, MediaKind, MovieSort, Page, SeriesItem, VodItem, GuidePage, SeriesInfo } from '../types';
 
-export interface AppStatus { version: string; configured: boolean; demoMode: boolean; language: Language; languageConfigured: boolean; autoplayLive: boolean }
+export interface AppStatus { version: string; configured: boolean; demoMode: boolean; language: Language; languageConfigured: boolean; autoplayLive: boolean; home?: HomeConfiguration }
 export interface LiveSelection { channel?: Channel; offset: number; channels: Channel[] }
 export const LIVE_PAGE_SIZE = 20;
 
@@ -23,7 +24,20 @@ const query = (values: Record<string, string | number | undefined>) => {
 const movieWindows = new Map<string, { expires: number; value: Promise<Page<VodItem>> }>();
 let liveCatalog: { expires: number; value: Promise<Channel[]> } | undefined;
 let liveCategories: { expires: number; value: Promise<Category[]> } | undefined;
-export function clearMovieWindows() { movieWindows.clear(); seriesWindows.clear(); seriesDetails.clear(); seriesDetailsPending.clear(); liveCatalog = undefined; liveCategories = undefined; }
+export function clearMovieWindows() { movieWindows.clear(); seriesWindows.clear(); seriesDetails.clear(); seriesDetailsPending.clear(); homePreviews.clear(); liveCatalog = undefined; liveCategories = undefined; }
+const homePreviews = new Map<string, { expires: number; value: Promise<HomeCatalog> }>();
+function homeCatalog(kind: 'movies' | 'series', provider: string, selection: string[]) {
+  const key = JSON.stringify([provider, kind, selection]);
+  const hit = homePreviews.get(key); if (hit && hit.expires > Date.now()) return hit.value;
+  const value = request<HomeCatalog>(`/api/home/catalog/${kind}?${query({ provider })}`).then(result => {
+    if (result.failed && homePreviews.get(key)?.value === value) homePreviews.delete(key);
+    return result;
+  });
+  const entry = { expires: Date.now() + 5 * 60_000, value }; homePreviews.set(key, entry);
+  if (homePreviews.size > 4) homePreviews.delete(homePreviews.keys().next().value!);
+  void value.catch(() => { if (homePreviews.get(key) === entry) homePreviews.delete(key); });
+  return value;
+}
 function fullLiveCatalog() {
   if (liveCatalog && liveCatalog.expires > Date.now()) return liveCatalog.value;
   const entry = { expires: Date.now() + 5 * 60_000, value: request<Channel[]>('/api/xtream/live/catalog') };
@@ -64,7 +78,13 @@ function catalogWindow(kind: 'vod' | 'series', categoryId = '', offset = 0, sear
 export const api = {
   status: () => request<AppStatus>('/api/status'),
   config: () => request<AppConfig>('/api/config'),
-  saveConfig: (value: Partial<AppConfig>) => catalogMutation(request<AppConfig>('/api/config', { method: 'PUT', body: JSON.stringify(value) })),
+  saveConfig: async (value: Partial<AppConfig>) => {
+    const result = await request<AppConfig>('/api/config', { method: 'PUT', body: JSON.stringify(value) });
+    if (['xtreamBaseUrl', 'xtreamUsername', 'xtreamPassword', 'demoMode'].some(key => key in value)) { clearMovieWindows(); clearEpgCache(); }
+    if ('homePreferences' in value) homePreviews.clear();
+    return result;
+  },
+  homeCatalog,
   testConfig: (value: Partial<AppConfig>) => request<{ ok: boolean; message: string }>('/api/config/test', { method: 'POST', body: JSON.stringify(value) }),
   refresh: () => catalogMutation(request<{ ok: boolean }>('/api/refresh', { method: 'POST' })),
   clearData: () => catalogMutation(request<AppConfig>('/api/data', { method: 'DELETE' })),

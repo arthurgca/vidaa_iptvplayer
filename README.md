@@ -206,6 +206,12 @@ Watch progress is checkpointed every 15 seconds during playback, and also when p
 
 If one channel fails while others work, try **Settings → Live format → HLS** or **TS**. A codec/container mismatch must be corrected at the provider/source.
 
+## Customize Home
+
+Open **Settings → Home** (**Configurações → Início** in Portuguese). Toggle Continue Watching or Favorites, select Movie or Series Categories, and use OK to choose provider categories. **Display Order** offers explicit **Move Up / Move Down** controls. Save applies the layout when returning Home. Category lists use pages of 20 entries.
+
+The original Home remains the default. **Use original preview** restores the first 12 provider items for the current content type; turning it off with no categories selected hides that area. **Restore Home defaults**, followed by Save, resets only this provider's Home customization. Navigation shortcuts always remain available. Categories are saved by ID and provider; temporarily missing categories are retained and shown as unavailable in Settings.
+
 ## CORS and HTTP/HTTPS
 
 Metadata uses the same-origin backend because Xtream servers often omit CORS headers. Media stays direct after a controlled redirect, so the provider must still permit playback from the TV.

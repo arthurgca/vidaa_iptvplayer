@@ -30,6 +30,7 @@ async function mount(children: preact.ComponentChildren) { act(() => render(<Har
 const key = async (key: string) => { act(() => { document.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true })); }); await settle(); };
 
 beforeEach(() => {
+  vi.spyOn(api, 'config').mockResolvedValue({ homePreferences: null, homeProviderKey: 'fixture' } as Awaited<ReturnType<typeof api.config>>);
   container = document.createElement('div'); document.body.append(container);
   vi.spyOn(api, 'status').mockResolvedValue({ version: '1.2.2', configured: true, demoMode: true, language: 'en', languageConfigured: true, autoplayLive: false });
   vi.spyOn(api, 'history').mockResolvedValue([episodeRow, row]);

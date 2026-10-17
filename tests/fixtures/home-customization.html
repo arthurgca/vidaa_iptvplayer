@@ -1,0 +1,74 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><title>Home measurements</title>
+<link rel="stylesheet" href="/src/styles.css"><div id="app" class="app-shell"></div>
+<script type="module">
+import { h, render } from 'preact';
+import { Home } from '/src/screens/Home.tsx';
+import { Settings } from '/src/screens/Settings.tsx';
+import { api } from '/src/api/client.ts';
+import { useFocusManager } from '/src/navigation/FocusContext.tsx';
+import { listenToRemote } from '/src/platform/remote.ts';
+const root = document.getElementById('app');
+const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+const config = { homePreferences: null, homeProviderKey: 'fixture', language: 'en', languageConfigured: true, configured: true, xtreamBaseUrl:'https://fixture.invalid',xtreamUsername:'fixture',xtreamPassword:'',xmltvUrl:'',epgRefreshHours:6,preferredLiveFormat:'auto',autoplayLive:false,rememberLastChannel:true,demoMode:false };
+const noop = () => {};
+const check=(value,message)=>{if(!value) throw new Error(message);};
+let focus, action;
+function SettingsHarness(){focus=useFocusManager();return h(Settings,{language:'en',setLanguage:noop,saved:noop,cleared:noop,registerAction:value=>{action=value;}});}
+async function run() {
+  const reports = []; let requests = 0;
+  api.config = async () => { requests++; return { ...config }; };
+  api.history = api.favorites = async () => { requests++; return []; };
+  const items = Array.from({length:12}, (_,i) => ({id:String(i),name:`Item ${i}`,categoryId:'cat'}));
+  api.vod = api.series = async () => { requests++; return {items,total:43567,offset:0,limit:12}; };
+  for (let i=0;i<7;i++) {
+    requests=0; const start=performance.now();
+    render(h(Home,{configuration:{homePreferences:config.homePreferences,homeProviderKey:config.homeProviderKey},open:noop,movie:noop,series:noop,resume:noop,favorite:noop}),root);
+    while(root.querySelectorAll('.poster-card').length !== 24) { if(performance.now()-start>3000) throw new Error('Home loading timed out'); await wait(1); }
+    await new Promise(requestAnimationFrame);
+    reports.push({iteration:i,homeMs:+(performance.now()-start).toFixed(2),requests,cards:root.querySelectorAll('.poster-card').length});
+    render(null,root); await wait(0);
+  }
+  config.homePreferences={version:1,movieCategoryIds:['2','1'],seriesCategoryIds:['s1'],sectionVisibility:{continueWatching:false,favorites:false}};
+  const originalFetch=globalThis.fetch;
+  globalThis.fetch=async url=>{
+    if(!String(url).startsWith('/api/home/catalog/')) return originalFetch(url);
+    requests++; const kind=String(url).includes('/movies')?'movies':'series';
+    const ids=kind==='movies'?config.homePreferences.movieCategoryIds:config.homePreferences.seriesCategoryIds;
+    return new Response(JSON.stringify({rows:ids.map(id=>({id,title:`${kind} category ${id}`,items:items.map(item=>({...item,id:`${id}:${item.id}`}))})),failed:false}));
+  };
+  for(let i=0;i<2;i++){
+    requests=0;const start=performance.now();render(h(Home,{configuration:{homePreferences:config.homePreferences,homeProviderKey:config.homeProviderKey},open:noop,movie:noop,series:noop,resume:noop,favorite:noop}),root);
+    while(root.querySelectorAll('.poster-card').length!==36){if(performance.now()-start>3000)throw new Error('Custom Home timed out');await wait(1);}
+    await new Promise(requestAnimationFrame);
+    reports.push({kind:i?'customized-warm':'customized-cold',homeMs:+(performance.now()-start).toFixed(2),requests,cards:36});
+    render(null,root);await wait(0);
+  }
+  let saves=0;
+  api.status=async()=>({version:'1.2.2'});
+  api.vodCategories=async()=>Array.from({length:2000},(_,i)=>({id:String(i+1),name:`Provider category ${i+1} ${'long label '.repeat(4)}`}));
+  api.seriesCategories=async()=>[{id:'s1',name:'Provider series'}];
+  api.saveConfig=async value=>{saves++;Object.assign(config,value);return {...config};};
+  const stop=listenToRemote(value=>action?.(value));
+  const press=async key=>{(document.activeElement||document).dispatchEvent(new KeyboardEvent('keydown',{key,bubbles:true,cancelable:true}));await wait(25);};
+  const select=async id=>{check(focus.focus(`settings:${id}`),`Missing control ${id}`);await press('Enter');};
+  render(h(SettingsHarness),root);await wait(70);
+  for(let i=0;i<4;i++)await press('ArrowRight');
+  check(focus.focused==='settings:tab:home','Cannot reach Home tab with remote');
+  await press('ArrowDown');check(focus.focused==='settings:home:continueWatching','Cannot enter Home panel');
+  check(root.querySelectorAll('.home-setting-item.category').length===20,'Category list exceeded page bound');
+  await select('home:movies:1');const selectedButton=document.activeElement;
+  await press('Enter');check(document.activeElement===selectedButton,'Category selection replaced or blurred control');
+  await select('home:order');
+  check(focus.focus('settings:home:movies:1:up'),'Missing move action');const moveButton=document.activeElement;
+  await press('Enter');check(document.activeElement===moveButton&&focus.focused==='settings:home:movies:1:up','Move lost category focus');
+  const footer=root.querySelector('.settings-save-bar');await select('save');
+  check(saves===1&&root.querySelector('.settings-save-bar')===footer,'Save replaced Settings');
+  check(config.homePreferences.movieCategoryIds.join(',')==='1,2','Saved order differs');
+  const rect=footer.getBoundingClientRect();check(rect.bottom<=innerHeight&&rect.width>0,'Save outside safe area');
+  reports.push({kind:'home-settings',viewport:`${innerWidth}x${innerHeight}`,availableCategories:2000,renderedCategoryRows:2,selection:'same DOM focus',reorder:'same DOM focus',savedOrder:config.homePreferences.movieCategoryIds,saves});
+  stop();globalThis.fetch=originalFetch;
+  return reports;
+}
+window.uiStability={done:false};
+run().then(reports=>{window.uiStability={done:true,reports};}).catch(error=>{window.uiStability={done:true,error:error.message};});
+</script></html>

@@ -34,3 +34,28 @@ it('rejects an old backend detail response at the Series catalog URL and retries
   expect((await api.seriesWindow()).items[0]?.id).toBe('show');
   expect(fetch).toHaveBeenCalledTimes(2);
 });
+
+it('shares small Home previews, isolates providers and orders, preserves warm catalog windows on Home saves, and invalidates refreshes', async () => {
+  const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(async url => new Response(JSON.stringify(String(url).includes('/home/')
+    ? { rows: [], failed: false } : { items: [], total: 10, offset: 0, limit: 120 })));
+  await api.movieWindow();
+  await Promise.all([api.homeCatalog('movies', 'A', ['1', '2']), api.homeCatalog('movies', 'A', ['1', '2'])]);
+  expect(fetch).toHaveBeenCalledTimes(2);
+  await api.homeCatalog('movies', 'B', ['1', '2']); await api.homeCatalog('movies', 'A', ['2', '1']); expect(fetch).toHaveBeenCalledTimes(4);
+  await api.saveConfig({ homePreferences: null, homeProviderKey: 'A' });
+  await api.movieWindow(); expect(fetch).toHaveBeenCalledTimes(5); // Home preferences did not discard the movie window
+  await api.homeCatalog('movies', 'A', ['1', '2']); expect(fetch).toHaveBeenCalledTimes(6);
+  await api.refresh(); await api.homeCatalog('movies', 'A', ['1', '2']); expect(fetch).toHaveBeenCalledTimes(8);
+});
+
+it('does not retain failed Home previews or let an invalidated in-flight preview replace a newer entry', async () => {
+  let complete!: (response: Response) => void;
+  const fetch = vi.spyOn(globalThis, 'fetch').mockImplementationOnce(() => new Promise(resolve => { complete = resolve; }))
+    .mockResolvedValue(new Response(JSON.stringify({ rows: [], failed: false })));
+  const old = api.homeCatalog('movies', 'A', ['1']); clearMovieWindows();
+  const newer = api.homeCatalog('movies', 'A', ['1']); await newer;
+  complete(new Response(JSON.stringify({ rows: [], failed: true }))); await old;
+  await api.homeCatalog('movies', 'A', ['1']); expect(fetch).toHaveBeenCalledTimes(2);
+  clearMovieWindows(); fetch.mockImplementation(async () => new Response(JSON.stringify({ rows: [], failed: true })));
+  await api.homeCatalog('movies', 'A', ['1']); await api.homeCatalog('movies', 'A', ['1']); expect(fetch).toHaveBeenCalledTimes(4);
+});

@@ -12,6 +12,8 @@ export interface AppConfig {
   rememberLastChannel: boolean;
   demoMode: boolean;
   language: Language;
+  homePreferences?: import('./homePreferences.js').HomePreferences | null;
+  homeProviderKey?: string;
 }
 
 export interface Category { id: string; name: string }

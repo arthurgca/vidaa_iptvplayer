@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile, rename } from 'node:fs/promises';
 import path from 'node:path';
 import type { AppConfig, Language } from './types.js';
+import { homeProviderKey, type HomePreferences } from './homePreferences.js';
 
 const dataDir = process.env.DATA_DIR || path.resolve('data');
 const configPath = path.join(dataDir, 'config.json');
@@ -17,20 +18,20 @@ const defaults: AppConfig = {
   language: pickLanguage(process.env.LANGUAGE)
 };
 
-let saved: Partial<AppConfig> = {};
-const environmentKeys: Record<keyof AppConfig, string> = {
+let saved: Partial<AppConfig> & { homePreferencesByProvider?: Record<string, HomePreferences> } = {};
+const environmentKeys: Partial<Record<keyof AppConfig, string>> = {
   xtreamBaseUrl: 'XTREAM_BASE_URL', xtreamUsername: 'XTREAM_USERNAME', xtreamPassword: 'XTREAM_PASSWORD',
   xmltvUrl: 'XMLTV_URL', epgRefreshHours: 'EPG_REFRESH_HOURS', preferredLiveFormat: 'PREFERRED_LIVE_FORMAT',
   autoplayLive: 'AUTOPLAY_LIVE', rememberLastChannel: 'REMEMBER_LAST_CHANNEL', demoMode: 'DEMO_MODE', language: 'LANGUAGE'
 };
 export function managedSettings(): (keyof AppConfig)[] {
   return (Object.keys(environmentKeys) as (keyof AppConfig)[]).filter(key => {
-    const value = process.env[environmentKeys[key]];
+    const value = process.env[environmentKeys[key]!];
     return key === 'language' ? isLanguage(value) : ['autoplayLive', 'rememberLastChannel', 'demoMode'].includes(key) ? value != null : Boolean(value);
   });
 }
 let writes = Promise.resolve();
-function persist(change: (previous: Partial<AppConfig>) => Partial<AppConfig>) {
+function persist(change: (previous: typeof saved) => typeof saved) {
   const operation = writes.catch(() => undefined).then(async () => {
     const next = change(saved);
     await writeFile(`${configPath}.tmp`, JSON.stringify(next, null, 2), { encoding: 'utf8', mode: 0o600 });
@@ -47,7 +48,8 @@ export async function initConfig(): Promise<void> {
 }
 
 export function getConfig(): AppConfig {
-  const config = { ...defaults, ...saved };
+  const { homePreferencesByProvider: _home, ...preferences } = saved;
+  const config = { ...defaults, ...preferences };
   return {
     ...config,
     xtreamBaseUrl: process.env.XTREAM_BASE_URL || config.xtreamBaseUrl,
@@ -66,6 +68,7 @@ export function getConfig(): AppConfig {
 export async function saveConfig(update: Partial<AppConfig>): Promise<AppConfig> {
   const permitted: (keyof AppConfig)[] = ['xtreamBaseUrl','xtreamUsername','xtreamPassword','xmltvUrl','epgRefreshHours','preferredLiveFormat','autoplayLive','rememberLastChannel','demoMode','language'];
   await persist(previous => {
+    if ('homePreferences' in update && update.homeProviderKey !== homeProviderKey(getConfig())) throw new Error('Provider changed. Reopen Settings before saving Home.');
     const next = { ...previous };
     for (const key of permitted) {
       const value = update[key];
@@ -74,6 +77,12 @@ export async function saveConfig(update: Partial<AppConfig>): Promise<AppConfig>
       // therefore means "keep the existing password", as the UI promises.
       if (key === 'xtreamPassword' && value === '' && Boolean(getConfig().xtreamPassword)) continue;
       (next as Record<string, unknown>)[key] = value;
+    }
+    if ('homePreferences' in update) {
+      const scope = homeProviderKey(getConfig());
+      next.homePreferencesByProvider = { ...previous.homePreferencesByProvider };
+      if (update.homePreferences == null) delete next.homePreferencesByProvider[scope];
+      else next.homePreferencesByProvider[scope] = update.homePreferences;
     }
     return next;
   });
@@ -96,6 +105,7 @@ export async function clearIptvConfig(): Promise<AppConfig> {
 export const languageConfigured = () => isLanguage(saved.language) || isLanguage(process.env.LANGUAGE);
 
 export function publicConfig(config = getConfig()) {
+  const scope = homeProviderKey(config);
   const managed = managedSettings();
   let publicBaseUrl = config.xtreamBaseUrl;
   if (managed.includes('xtreamBaseUrl')) {
@@ -105,7 +115,7 @@ export function publicConfig(config = getConfig()) {
       publicBaseUrl = url.toString();
     } catch { publicBaseUrl = ''; }
   }
-  return { ...config, xtreamBaseUrl: publicBaseUrl, xmltvUrl: managed.includes('xmltvUrl') ? '' : config.xmltvUrl, xtreamPassword: '', managedSettings: managed, passwordConfigured: Boolean(config.xtreamPassword), languageConfigured: languageConfigured(), configured: config.demoMode || Boolean(config.xtreamBaseUrl && config.xtreamUsername && config.xtreamPassword) };
+  return { ...config, homeProviderKey: scope, homePreferences: saved.homePreferencesByProvider?.[scope] ?? null, xtreamBaseUrl: publicBaseUrl, xmltvUrl: managed.includes('xmltvUrl') ? '' : config.xmltvUrl, xtreamPassword: '', managedSettings: managed, passwordConfigured: Boolean(config.xtreamPassword), languageConfigured: languageConfigured(), configured: config.demoMode || Boolean(config.xtreamBaseUrl && config.xtreamUsername && config.xtreamPassword) };
 }
 
 export { dataDir };

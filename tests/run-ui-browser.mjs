@@ -43,7 +43,7 @@ try {
   const [width, height] = (process.env.UI_VIEWPORT || '1920x1080').split('x').map(Number);
   if (!width || !height) throw new Error('UI_VIEWPORT must be WIDTHxHEIGHT.');
   await command('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
-  await command('Page.navigate', { url: `http://127.0.0.1:${address.port}/tests/fixtures/ui-stability.html` });
+  await command('Page.navigate', { url: `http://127.0.0.1:${address.port}/tests/fixtures/${process.env.UI_FIXTURE || 'ui-stability.html'}` });
   let report;
   for (let attempt = 0; attempt < 300; attempt++) {
     const result = await command('Runtime.evaluate', { expression: 'window.uiStability', returnByValue: true });

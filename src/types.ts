@@ -3,6 +3,7 @@ import type { Language } from './i18n';
 export type MediaKind = 'live' | 'movie' | 'series';
 export type MovieSort = 'title-asc' | 'title-desc' | 'added-desc' | 'added-asc' | 'release-desc' | 'release-asc' | 'rating-desc' | 'rating-asc';
 export interface Category { id: string; name: string }
+export interface AppConfig { homePreferences?: import('./homePreferences').HomePreferences | null; homeProviderKey?: string }
 export interface Channel { id: string; name: string; categoryId: string; logo?: string; epgChannelId?: string; number?: number; extension?: string }
 export interface VodItem { id: string; name: string; categoryId: string; poster?: string; backdrop?: string; year?: string; rating?: string; duration?: string; genre?: string; description?: string; extension?: string }
 export interface SeriesItem extends Omit<VodItem, 'extension'> {}

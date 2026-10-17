@@ -51,9 +51,10 @@ interface FocusableProps {
   neighbors?: Partial<Record<Direction, NeighborTarget>>; onSelect: () => void; className?: string; children: preact.ComponentChildren;
   disabled?: boolean; title?: string; onFocus?: () => void;
   hoverFocus?: boolean;
+  pressed?: boolean;
 }
 
-export function Focusable({ focusKey, group, index, columns, orientation, neighbors, onSelect, className = '', children, disabled, title, onFocus, hoverFocus = true }: FocusableProps) {
+export function Focusable({ focusKey, group, index, columns, orientation, neighbors, onSelect, className = '', children, disabled, title, onFocus, hoverFocus = true, pressed }: FocusableProps) {
   const focus = useFocusManager(); const ref = useRef<HTMLButtonElement>(null);
   const selectRef = useRef(onSelect); selectRef.current = onSelect;
   // Season switches replace neighbors and episode buttons in the same commit.
@@ -68,5 +69,5 @@ export function Focusable({ focusKey, group, index, columns, orientation, neighb
     if (disabled) { focus.unregister(focusKey, element); return; }
     return () => focus.unregister(focusKey, element);
   }, [focus, focusKey, disabled]);
-  return <button ref={ref} type="button" tabIndex={-1} className={`focusable ${className}`} onClick={onSelect} onFocus={onFocus} onMouseEnter={hoverFocus ? () => focus.focus(focusKey) : undefined} disabled={disabled} title={title}>{children}</button>;
+  return <button ref={ref} type="button" tabIndex={-1} data-focus-key={focusKey} aria-pressed={pressed} className={`focusable ${className}`} onClick={onSelect} onFocus={onFocus} onMouseEnter={hoverFocus ? () => focus.focus(focusKey) : undefined} disabled={disabled} title={title}>{children}</button>;
 }

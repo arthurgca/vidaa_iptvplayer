@@ -13,6 +13,7 @@ import { APP_VERSION } from './version.js';
 import { clearXtreamCache, streamUrl, validateAccount, xtream } from './xtream/client.js';
 import { normalizeCategories, normalizeChannels, normalizeSeriesInfo, normalizeVod, normalizeVodInfo } from './xtream/normalizer.js';
 import { movieIndex, seriesIndex } from './xtream/movieIndex.js';
+import { homeCategoryRows } from './homeCatalog.js';
 
 await initConfig();
 await initStore();
@@ -71,11 +72,33 @@ async function series(categoryId?: string): Promise<SeriesItem[]> {
 }
 
 app.get('/health', (_req, res) => res.json({ status: 'ok', version: APP_VERSION }));
-app.get('/api/status', (_req, res) => res.json({ version: APP_VERSION, configured: publicConfig().configured, demoMode: getConfig().demoMode, language: getConfig().language, languageConfigured: languageConfigured(), autoplayLive: getConfig().autoplayLive, epg: epgStatus() }));
+app.get('/api/status', (_req, res) => {
+  const config = publicConfig();
+  res.json({ version: APP_VERSION, configured: config.configured, demoMode: config.demoMode, language: config.language, languageConfigured: languageConfigured(), autoplayLive: config.autoplayLive, home: { homeProviderKey: config.homeProviderKey, homePreferences: config.homePreferences }, epg: epgStatus() });
+});
 app.get('/api/live/selection', asyncRoute(async (_req, res) => {
   res.json(liveSelection(await live(), library.history(), getConfig().rememberLastChannel));
 }));
 app.get('/api/config', (_req, res) => res.json(publicConfig()));
+app.get('/api/home/catalog/:kind', asyncRoute(async (req, res) => {
+  const kind = req.params.kind;
+  if (kind !== 'movies' && kind !== 'series') { res.status(404).end(); return; }
+  const config = publicConfig();
+  if (req.query.provider !== config.homeProviderKey) { res.status(409).json({ error: 'Provider changed. Reopen Home.' }); return; }
+  const selected = kind === 'movies' ? config.homePreferences?.movieCategoryIds : config.homePreferences?.seriesCategoryIds;
+  if (!selected?.length || library.contentCleared()) { res.json({ rows: [], failed: false }); return; }
+  const [categoryResult, catalogResult] = await Promise.allSettled([
+    categories(kind === 'movies' ? 'vod' : 'series'),
+    getConfig().demoMode ? Promise.resolve(kind === 'movies'
+      ? demoVod.map(item => ({ ...item, stream_id: item.id, category_id: item.categoryId, stream_icon: item.poster }))
+      : demoSeries.map(item => ({ ...item, series_id: item.id, category_id: item.categoryId, cover: item.poster })))
+      : xtream(kind === 'movies' ? 'get_vod_streams' : 'get_series')
+  ]);
+  if (publicConfig().homeProviderKey !== config.homeProviderKey) { res.status(409).json({ error: 'Provider changed. Reopen Home.' }); return; }
+  if (categoryResult.status === 'rejected' || catalogResult.status === 'rejected') { res.json({ rows: [], failed: true }); return; }
+  const index = (kind === 'movies' ? movieIndex : seriesIndex)(catalogResult.value);
+  res.json({ rows: homeCategoryRows(index, categoryResult.value, selected), failed: false });
+}));
 app.put('/api/config', asyncRoute(async (req, res) => {
   const update = configUpdate(req.body);
   const previous = getConfig() as unknown as Record<string, unknown>;

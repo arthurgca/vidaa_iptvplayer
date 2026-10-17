@@ -20,6 +20,7 @@ import { resumePosition } from './player/history';
 import { captureBrowseScroll, type ScrollPosition } from './navigation/scroll';
 import { emptyCatalogQuery, type CatalogQuery } from './catalogQuery';
 import type { Channel, Episode, Favorite, HistoryItem, SeriesItem, VodItem } from './types';
+import type { HomeConfiguration } from './homePreferences';
 
 type RouteName = 'home'|'live'|'guide'|'movies'|'movie-details'|'series'|'series-details'|'favorites'|'recent'|'settings'|'player';
 interface Route { name: RouteName; data?: unknown; restoreFocus?: string; scroll?: ScrollPosition[]; seriesContext?: SeriesContext }
@@ -41,6 +42,7 @@ interface RouterProps { language: Language; setLanguage: (language: Language) =>
 function AppRouter({ language, setLanguage }: RouterProps) {
   const focus = useFocusManager(); const focusedKey = useFocusedKey(); const t = useTranslate();
   const [routes, setRoutes] = useState<Route[]>([]); const [startupError, setStartupError] = useState(''); const [lastKey, setLastKey] = useState('');
+  const [homeConfiguration, setHomeConfiguration] = useState<HomeConfiguration>();
   const [catalogs, setCatalogs] = useState(() => ({ live: emptyCatalogQuery(), movies: emptyCatalogQuery(), series: emptyCatalogQuery() }));
   const setCatalog = (kind: keyof typeof catalogs, query: CatalogQuery) => setCatalogs((value) => ({ ...value, [kind]: query }));
   const playerAction = useRef<((action: RemoteAction) => boolean) | null>(null);
@@ -73,6 +75,7 @@ function AppRouter({ language, setLanguage }: RouterProps) {
     let active = true;
     void api.status().then(async (status) => {
       if (!active) return;
+      setHomeConfiguration(status.home);
       if (status.languageConfigured) setLanguage(status.language);
       if (!status.configured) { setRoutes([{ name: 'settings', data: { firstRun: true } }]); return; }
       const selection = status.autoplayLive ? await api.liveSelection().catch(() => undefined) : undefined;
@@ -148,7 +151,7 @@ function AppRouter({ language, setLanguage }: RouterProps) {
   };
   let screen: preact.ComponentChildren;
   switch (current.name) {
-    case 'home': screen = <Home open={openHomeRoute} movie={(item) => push('movie-details', item)} series={(item) => push('series-details', item)} resume={openRecent} favorite={openFavorite} restoreFocus={current.restoreFocus} scroll={current.scroll} />; break;
+    case 'home': screen = <Home configuration={homeConfiguration} open={openHomeRoute} movie={(item) => push('movie-details', item)} series={(item) => push('series-details', item)} resume={openRecent} favorite={openFavorite} restoreFocus={current.restoreFocus} scroll={current.scroll} />; break;
     case 'live': screen = <LiveTV query={catalogs.live} setQuery={(query) => setCatalog('live', query)} restoreFocus={current.restoreFocus} scroll={current.scroll} lastTuned={playingLiveChannel.current} guide={() => push('guide')} play={(channel, channels) => { playingLiveChannel.current = channel.id; push('player', { type: 'live', id: channel.id, item: channel, extension: channel.extension, channels } satisfies Playable); }} />; break;
     case 'guide': screen = <Guide category={catalogs.live.category} play={(channel, channels) => push('player', { type: 'live', id: channel.id, item: channel, extension: channel.extension, channels } satisfies Playable)} />; break;
     case 'movies': screen = <MediaCatalog kind="movies" query={catalogs.movies} setQuery={(query) => setCatalog('movies', query)} restoreFocus={current.restoreFocus} scroll={current.scroll} open={(item) => push('movie-details', item)} />; break;
@@ -157,7 +160,7 @@ function AppRouter({ language, setLanguage }: RouterProps) {
     case 'series-details': screen = <SeriesDetails key={(current.data as SeriesItem).id} seed={current.data as SeriesItem} play={playEpisode} back={back} restoreFocus={current.restoreFocus} scroll={current.scroll} context={current.seriesContext} saveContext={seriesContext => setRoutes(stack => stack.map((route, i) => i === stack.length - 1 ? { ...route, seriesContext } : route))} />; break;
     case 'favorites': screen = <Favorites open={openFavorite} />; break;
     case 'recent': screen = <Recent open={openRecent} />; break;
-    case 'settings': screen = <Settings firstRun={Boolean((current.data as { firstRun?: boolean })?.firstRun)} language={language} setLanguage={setLanguage} saved={(current.data as { firstRun?: boolean })?.firstRun ? replaceHome : back} leave={back} registerAction={handler => { settingsAction.current = handler; }} cleared={() => setCatalogs({ live: emptyCatalogQuery(), movies: emptyCatalogQuery(), series: emptyCatalogQuery() })} />; break;
+    case 'settings': screen = <Settings updated={value => { if (value.homeProviderKey) setHomeConfiguration({ homeProviderKey: value.homeProviderKey, homePreferences: value.homePreferences ?? null }); }} firstRun={Boolean((current.data as { firstRun?: boolean })?.firstRun)} language={language} setLanguage={setLanguage} saved={(current.data as { firstRun?: boolean })?.firstRun ? replaceHome : back} leave={back} registerAction={handler => { settingsAction.current = handler; }} cleared={() => setCatalogs({ live: emptyCatalogQuery(), movies: emptyCatalogQuery(), series: emptyCatalogQuery() })} />; break;
     case 'player': screen = <Player media={current.data as Playable} registerAction={(handler) => { playerAction.current = handler; }} close={back} liveChannelChanged={(channel) => { playingLiveChannel.current = channel.id; }} />; break;
   }
   const debug = import.meta.env.DEV && new URLSearchParams(location.search).get('debug') === '1';
