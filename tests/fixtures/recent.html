@@ -1,0 +1,79 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><title>Recently Watched remote regression</title>
+<link rel="stylesheet" href="/src/styles.css"><div id="app" class="app-shell with-hint"></div>
+<script type="module">
+import { h, render } from 'preact';
+import { api } from '/src/api/client.ts';
+import { Recent } from '/src/screens/Recent.tsx';
+import { useFocusManager } from '/src/navigation/FocusContext.tsx';
+import { listenToRemote } from '/src/platform/remote.ts';
+const root = document.getElementById('app');
+const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+const check = (condition, message) => { if (!condition) throw new Error(message); };
+let focus, action, clearCount = 0, openCount = 0;
+const artwork = label => `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="240" height="360"><rect width="240" height="360" fill="#24485d"/><text x="120" y="180" text-anchor="middle" fill="white" font-family="Arial" font-size="24">${label}</text></svg>`)}`;
+const show = { id: 'show', name: 'The Office', poster: artwork('THE OFFICE'), categoryId: '' };
+let rows = Array.from({ length: 100 }, (_, index) => {
+  const type = ['series', 'movie', 'live'][index % 3], id = String(index);
+  return { type, id, item: type === 'series' ? { id, name: 'New Guys', season: 9, episode: index + 1 } : { id, name: type === 'live' ? `Channel ${index}` : `Movie ${index}`, categoryId: '', ...(type === 'live' ? {} : {poster:artwork('MOVIE')}) }, ...(type === 'series' ? {series:show} : {}), position: index % 5 ? 120 : 0, duration: 1200, watchedAt: 1000 - index };
+});
+api.history = async () => { await wait(80); return [...rows]; };
+api.forget = async (type, id) => { await wait(25); rows = rows.filter(row => row.type !== type || row.id !== id); };
+api.clearHistory = async () => { clearCount++; await wait(50); rows = []; };
+function Harness() { focus = useFocusManager(); return h(Recent, { open: () => openCount++, back: () => {}, registerAction: value => action = value }); }
+listenToRemote(remote => {
+  if (action?.(remote)) return;
+  if (remote === 'SELECT') focus.select();
+  if (remote.startsWith('NAV_')) focus.move(remote.substring(4).toLowerCase());
+  if (remote === 'CHANNEL_UP' || remote === 'CHANNEL_DOWN') focus.page(remote === 'CHANNEL_UP' ? -1 : 1, ['recent', 'recent-remove']);
+});
+async function press(key) { document.dispatchEvent(new KeyboardEvent('keydown', {key, bubbles:true})); await wait(5); }
+const focused = () => root.querySelector(`[data-focus-key="${focus.focused}"]`);
+function visibleFocus() {
+  const element = focused(); check(document.activeElement === element, `Lost native focus: ${focus.focused}`);
+  check(getComputedStyle(element).outlineStyle === 'solid', `Focus indicator missing: ${focus.focused}`);
+  const rect = element.getBoundingClientRect();
+  check(rect.top >= 0 && rect.bottom <= innerHeight && rect.left >= 0 && rect.right <= innerWidth, `Offscreen focus: ${focus.focused}`);
+}
+async function run() {
+  render(h(Harness), root); await wait(20); check(focus.focused === 'recent:back', 'No focus while loading'); visibleFocus();
+  await wait(120); check(focus.focused === 'recent:series:0', 'Wrong initial focus');
+  visibleFocus(); check(root.querySelectorAll('.recent-entry').length === 100, 'Long history incomplete');
+  const list = root.querySelector('.recent-list');
+  check(list.clientWidth > innerWidth * .85, 'History is too narrow');
+  const lane = root.querySelector('.recent-entry');
+  check(lane.scrollWidth <= lane.clientWidth + 1, 'Row overflows horizontally');
+  const reports = [{ viewport:`${innerWidth}x${innerHeight}`, rows:100, listWidth:list.clientWidth }];
+  await press('ArrowUp'); check(focus.focused === 'recent:clear', 'Cannot reach header');
+  await press('Enter'); check(focus.focused === 'recent-dialog:cancel', 'Cancel not initially focused');
+  await press('PageDown'); check(focus.focused === 'recent-dialog:cancel', 'Dialog focus escaped');
+  await press('Escape'); check(focus.focused === 'recent:clear' && rows.length === 100, 'Back changed history');
+  await press('ArrowDown');
+  for (let i = 0; i < 45; i++) { await press('ArrowDown'); visibleFocus(); }
+  check(focus.focused === 'recent:series:45', 'Rapid navigation missed a row');
+  check(list.scrollTop > 0, 'History did not scroll');
+  await press('ArrowRight'); visibleFocus();
+  const previous = list.scrollTop;
+  const retained = root.querySelector('[data-focus-key="recent:movie:46"]');
+  await press('Enter'); await press('Enter'); await wait(60);
+  check(rows.length === 99, 'Repeated removal deleted extra rows');
+  check(focus.focused === 'recent:movie:46', 'Removal lost surrounding focus'); visibleFocus();
+  check(root.querySelector('[data-focus-key="recent:movie:46"]') === retained, 'Remaining row remounted');
+  check(list.scrollTop === previous, 'Removal reset scroll');
+  await press('PageDown'); visibleFocus(); await press('PageUp'); visibleFocus();
+  reports.push({ afterRemoval:rows.length, scrollTop:list.scrollTop, focus:focus.focused, openCount });
+  focus.focus('recent:clear'); await press('Enter'); await press('Enter'); check(rows.length === 99, 'Cancel removed rows');
+  await press('Enter'); await press('ArrowRight'); await press('Enter'); await press('Enter'); await wait(80);
+  check(clearCount === 1 && rows.length === 0, 'Clear failed or duplicated');
+  check(focus.focused === 'recent:back', 'Empty state lost focus'); visibleFocus();
+  check(root.querySelector('[data-focus-key="recent:clear"]').disabled, 'Empty clear remains enabled');
+  reports.push({clearCount, finalCount:rows.length, emptyFocus:focus.focused});
+  // Leave representative content available for visual inspection/screenshots.
+  render(null, root); rows = [
+    { type:'series', id:'episode', item:{id:'episode',name:'New Guys',season:9,episode:1},series:show,position:154,duration:1320,watchedAt:3 },
+    { type:'movie', id:'movie', item:{id:'movie',name:'The Secret Life of Walter Mitty',categoryId:'',poster:artwork('WALTER MITTY')},position:1840,duration:6840,watchedAt:2 },
+    { type:'live', id:'live', item:{id:'live',name:'World News HD',categoryId:''},position:0,duration:0,watchedAt:1 }
+  ]; render(h(Harness),root); await wait(160); visibleFocus();
+  window.uiStability = { done:true, reports };
+}
+run().catch(error => { window.uiStability = { done:true,error:error.stack || String(error) }; });
+</script></html>

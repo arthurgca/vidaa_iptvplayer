@@ -190,7 +190,7 @@ div.poster { min-height: 8rem }
 .library-card small, .library-card strong { display: block; overflow: hidden; text-overflow: ellipsis }
 .library-card small { color: var(--focus); font-size: .78rem; font-weight: 800; letter-spacing: .1em; margin-bottom: .2rem }
 .library-card strong { font-size: .95rem; white-space: nowrap }
-.recent-list { max-width: 60rem }
+.recent-list { width: 100% }
 .recent-row { display: flex; align-items: center; gap: 1rem; width: 100%; margin: .4rem 0; padding: .6rem 1rem; background: var(--surface); border-radius: var(--radius) }
 .recent-row img, .recent-row > .image-fallback { flex: none; width: 6rem; height: 3.4rem; object-fit: contain; background: var(--bg); border-radius: .35rem }
 .recent-row span { display: flex; flex-direction: column; flex: 1; min-width: 0 }
@@ -198,6 +198,38 @@ div.poster { min-height: 8rem }
 .recent-row strong { font-size: 1.05rem; margin-top: .15rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 .recent-row em { color: var(--text-dim); font-size: .85rem; font-style: normal; margin-top: .15rem }
 .recent-row b { flex: none; color: var(--focus); opacity: .55 }
+
+/* Chronological history: the full row plays, with a quiet removal lane. */
+.recent-screen .section-header { align-items: center; margin-bottom: .5rem }
+.recent-count { color: var(--text-dim); margin: .65rem 0 0; font-size: .95rem }
+.recent-status { flex: none; min-height: 1.8rem; color: var(--text-dim); font-size: .9rem }
+.recent-status .form-message { margin: 0 0 .5rem }
+.recent-status p { margin: 0 }
+.recent-screen .recent-list { padding: .7rem; scroll-behavior: auto; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent }
+.recent-screen .recent-list::-webkit-scrollbar { width: .3rem }
+.recent-screen .recent-list::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: var(--radius) }
+.recent-screen .recent-list::-webkit-scrollbar-track { background: transparent }
+.recent-entry { display: flex; align-items: stretch; gap: .75rem; margin-bottom: .85rem; padding: .35rem; border: 1px solid var(--line); background: var(--surface); border-radius: var(--radius) }
+.recent-play { display: flex; align-items: center; gap: 1.3rem; flex: 1; min-width: 0; padding: .65rem 1rem; border-radius: var(--radius) }
+.recent-play:focus, .recent-remove:focus { transform: none }
+.recent-artwork { flex: none; width: 5.2rem; height: 7.2rem; object-fit: contain; background: var(--bg); border-radius: .4rem }
+.recent-entry-live .recent-artwork { height: 4.6rem }
+.recent-info { display: flex; flex-direction: column; flex: 1; min-width: 0; gap: .3rem }
+.recent-info > small { color: var(--focus); font-size: .75rem; letter-spacing: .1em; font-weight: 800; text-transform: uppercase }
+.recent-info > strong { font-size: 1.3rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.recent-episode, .recent-position { font-size: .95rem; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.recent-info .progress { width: 100%; max-width: 26rem; margin: .35rem 0 0; height: .25rem }
+.recent-primary { flex: none; color: var(--focus); font-size: 1rem; font-weight: 800; margin-left: 1rem }
+.recent-remove { flex: none; align-self: center; min-width: 7rem; padding: 1rem; margin-right: .5rem; color: var(--text-dim); font-size: .95rem; background: var(--surface-2) }
+.recent-remove > span { font-size: 1.4rem; vertical-align: -.1rem; padding-right: .3rem }
+.recent-remove:focus { color: #fff }
+.recent-empty { height: 100%; gap: .8rem }
+.recent-empty h2 { color: var(--text); font-size: 1.7rem }
+.recent-empty p { margin-bottom: .8rem }
+.recent-empty-symbol { color: var(--focus); font-size: 3.5rem }
+.recent-dialog-actions { display: flex; justify-content: flex-end; gap: 1rem; margin-top: 1.2rem }
+.recent-dialog-actions button { min-width: 8rem; text-align: center }
+.recent-screen button:disabled { opacity: .4; cursor: default }
 
 /* ---- Settings ------------------------------------------------------------ */
 /* Settings has one bounded content pane; actions stay inside the TV safe area. */

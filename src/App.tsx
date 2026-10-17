@@ -47,6 +47,7 @@ function AppRouter({ language, setLanguage }: RouterProps) {
   const setCatalog = (kind: keyof typeof catalogs, query: CatalogQuery) => setCatalogs((value) => ({ ...value, [kind]: query }));
   const playerAction = useRef<((action: RemoteAction) => boolean) | null>(null);
   const settingsAction = useRef<((action: RemoteAction) => boolean) | null>(null);
+  const recentAction = useRef<((action: RemoteAction) => boolean) | null>(null);
   const current = routes[routes.length - 1];
   const currentRoute = useRef(current); currentRoute.current = current;
   const recentRequest = useRef(0);
@@ -69,7 +70,7 @@ function AppRouter({ language, setLanguage }: RouterProps) {
     const restoreFocus = previous?.restoreFocus;
     // Live browsing context is independent of channels surfed inside the player.
     setRoutes((stack) => stack.slice(0, -1).map((route, index) => index === stack.length - 2 ? { ...route, restoreFocus, scroll: route.restoreFocus === restoreFocus ? route.scroll : undefined } : route));
-    if (previous?.name !== 'live') restoreSoon(restoreFocus);
+    if (previous?.name !== 'live' && previous?.name !== 'recent') restoreSoon(restoreFocus);
   };
   useEffect(() => {
     let active = true;
@@ -94,6 +95,7 @@ function AppRouter({ language, setLanguage }: RouterProps) {
   useEffect(() => listenToRemote((action) => {
     setLastKey(action);
     if (current?.name === 'settings' && settingsAction.current?.(action)) return;
+    if (current?.name === 'recent' && recentAction.current?.(action)) return;
     if (current?.name === 'player' && playerAction.current) { if (playerAction.current(action)) return; }
     if (action === 'CHANNEL_UP' || action === 'CHANNEL_DOWN') {
       const direction = action === 'CHANNEL_UP' ? -1 : 1;
@@ -115,7 +117,7 @@ function AppRouter({ language, setLanguage }: RouterProps) {
     if (action === 'NAV_RIGHT') focus.move('right');
   }), [current?.name, routes.length]);
   useEffect(() => {
-    if (current?.name === 'player' || current?.name === 'movies' || current?.name === 'series' || current?.name === 'series-details' || current?.name === 'live') return;
+    if (current?.name === 'player' || current?.name === 'movies' || current?.name === 'series' || current?.name === 'series-details' || current?.name === 'live' || current?.name === 'recent') return;
     const initialSettingsFocus = current?.name === 'settings' ? `settings:tab:${(current.data as { firstRun?: boolean })?.firstRun ? 'provider' : 'general'}` : undefined;
     const timer = restoreSoon(current?.restoreFocus ?? initialSettingsFocus);
     return () => clearTimeout(timer);
@@ -159,7 +161,7 @@ function AppRouter({ language, setLanguage }: RouterProps) {
     case 'series': screen = <MediaCatalog kind="series" query={catalogs.series} setQuery={(query) => setCatalog('series', query)} restoreFocus={current.restoreFocus} scroll={current.scroll} open={(item) => push('series-details', item)} />; break;
     case 'series-details': screen = <SeriesDetails key={(current.data as SeriesItem).id} seed={current.data as SeriesItem} play={playEpisode} back={back} restoreFocus={current.restoreFocus} scroll={current.scroll} context={current.seriesContext} saveContext={seriesContext => setRoutes(stack => stack.map((route, i) => i === stack.length - 1 ? { ...route, seriesContext } : route))} />; break;
     case 'favorites': screen = <Favorites open={openFavorite} />; break;
-    case 'recent': screen = <Recent open={openRecent} />; break;
+    case 'recent': screen = <Recent open={openRecent} back={back} restoreFocus={current.restoreFocus} scroll={current.scroll} registerAction={handler => { recentAction.current = handler; }} cancelPendingOpen={() => { recentRequest.current++; }} />; break;
     case 'settings': screen = <Settings updated={value => { if (value.homeProviderKey) setHomeConfiguration({ homeProviderKey: value.homeProviderKey, homePreferences: value.homePreferences ?? null }); }} firstRun={Boolean((current.data as { firstRun?: boolean })?.firstRun)} language={language} setLanguage={setLanguage} saved={(current.data as { firstRun?: boolean })?.firstRun ? replaceHome : back} leave={back} registerAction={handler => { settingsAction.current = handler; }} cleared={() => setCatalogs({ live: emptyCatalogQuery(), movies: emptyCatalogQuery(), series: emptyCatalogQuery() })} />; break;
     case 'player': screen = <Player media={current.data as Playable} registerAction={(handler) => { playerAction.current = handler; }} close={back} liveChannelChanged={(channel) => { playingLiveChannel.current = channel.id; }} />; break;
   }

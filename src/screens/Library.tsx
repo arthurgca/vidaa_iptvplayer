@@ -3,9 +3,7 @@ import { api } from '../api/client';
 import { Empty, Image, Spinner } from '../components/common';
 import { useTranslate } from '../i18n/I18nContext';
 import { Focusable, useFocusManager } from '../navigation/FocusContext';
-import { formatPlaybackTime } from '../player/Player';
-import { isWatched, resumePosition } from '../player/history';
-import type { Favorite, HistoryItem } from '../types';
+import type { Favorite } from '../types';
 
 function useLibrary<T>(load: () => Promise<T[]>) {
   const [data, setData] = useState<T[]>(); const [error, setError] = useState(''); const [busy, setBusy] = useState(false);
@@ -44,19 +42,7 @@ export function Favorites({ open }: { open: (row: Favorite) => void }) {
   </LibraryShell>;
 }
 
-export function Recent({ open }: { open: (row: HistoryItem) => void }) {
-  const t = useTranslate(); const rows = useLibrary(api.history);
-  return <LibraryShell eyebrow={t('library.recent.eyebrow')} title={t('library.recent.title')}>
-    {rows.error && <LibraryError error={rows.error} retry={rows.retry} />}{rows.busy && <p role="status">{t('library.saving')}</p>}
-    {!rows.data ? !rows.error && <Spinner /> : !rows.data.length ? <Empty>{t('library.recent.empty')}</Empty> : <div className="recent-list">{rows.data.map((row,index) => {
-      const key = `recent:${row.type}:${row.id}`; const resume = resumePosition(row);
-      return <div key={key} className="library-edit-row">
-        <Focusable focusKey={key} group="recent" index={index} orientation="vertical" neighbors={{ right: `${key}:remove` }} onSelect={() => open(row)} className="recent-row"><Image src={'logo' in row.item ? row.item.logo : 'poster' in row.item ? row.item.poster : row.series?.poster} alt={row.item.name} /><span><small>{t(`kind.${row.type}`)}</small><strong>{row.item.name}</strong>{row.type !== 'live' && (isWatched(row) ? <em>{t('details.watched')}</em> : resume > 0 && <em>{t('library.continueAt', { time: formatPlaybackTime(resume) })}</em>)}</span><b>▶</b></Focusable>
-        <Focusable focusKey={`${key}:remove`} group="recent-remove" index={index} orientation="vertical" neighbors={{ left: key }} onSelect={() => rows.run(async () => { await api.forget(row.type, row.id); return api.history(); }, rows.data?.[index + 1] ? `recent:${rows.data[index + 1]!.type}:${rows.data[index + 1]!.id}` : index ? `recent:${rows.data![index - 1]!.type}:${rows.data![index - 1]!.id}` : 'library:retry')} className="danger-button">{t('library.remove')}</Focusable>
-      </div>;
-    })}</div>}
-  </LibraryShell>;
-}
+export { Recent } from './Recent';
 
 function LibraryError({ error, retry }: { error: string; retry: () => void }) {
   const t = useTranslate();

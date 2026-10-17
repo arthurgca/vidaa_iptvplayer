@@ -119,7 +119,7 @@ export function Player({ media, registerAction, close, liveChannelChanged }: { m
   const generation = useRef(0); const recovery = useRef(new RecoveryBudget());
   const retryTimer = useRef<number>(); const stallTimer = useRef<number>(); const healthyTimer = useRef<number>();
   const restartAt = useRef<number>();
-  const session = useRef<{ media: Playable; position: number; duration: number; completed: boolean; started: boolean }>();
+  const session = useRef<{ media: Playable; position: number; duration: number; completed: boolean; started: boolean; historyVersion: Promise<number> }>();
   const [attempt, setAttempt] = useState(0); const [options, setOptions] = useState(false);
   const [audio, setAudio] = useState<TrackChoice[]>([]); const [subtitles, setSubtitles] = useState<TrackChoice[]>([]);
   const [autoNext, setAutoNext] = useState(() => { try { return localStorage.getItem('vidaa-auto-next') === 'true'; } catch { return false; } });
@@ -233,7 +233,9 @@ export function Player({ media, registerAction, close, liveChannelChanged }: { m
     setActive({ type: 'live', id: channel.id, item: channel, extension: channel.extension, channels }); setBrowseIndex((index + channels.length) % channels.length); setBrowsing(false); show();
   };
   useEffect(() => {
-    const record = { media: active, position: active.resumeAt || 0, duration: 0, completed: false, started: false };
+    const historyVersion = api.historyVersion();
+    void historyVersion.catch(() => undefined); // Save attempts retain the failure; never send an unversioned checkpoint.
+    const record = { media: active, position: active.resumeAt || 0, duration: 0, completed: false, started: false, historyVersion };
     session.current = record; recovery.current.reset(); setAttempt(0); restartAt.current = undefined;
     if (active.type === 'live') liveChannelChanged?.(active.item as Channel);
     void start();
@@ -302,7 +304,7 @@ export function Player({ media, registerAction, close, liveChannelChanged }: { m
   }, [active, overlay, browsing, browseIndex, state, options, autoNext, attempt]);
   const saveSession = (record = session.current) => {
     if (!record?.started) return Promise.resolve();
-    return api.watched({ type: record.media.type, id: record.media.id, item: record.media.item, series: record.media.series, position: record.position, duration: record.duration, completed: record.completed, checkpointAt: checkpointTime() }, true).then(() => undefined).catch(() => undefined);
+    return api.watched({ type: record.media.type, id: record.media.id, item: record.media.item, series: record.media.series, position: record.position, duration: record.duration, completed: record.completed, checkpointAt: checkpointTime(), historyVersion: record.historyVersion }, true).then(() => undefined).catch(() => undefined);
   };
   const ended = () => {
     if (active.type === 'live') { recover(); return; }

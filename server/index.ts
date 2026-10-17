@@ -222,16 +222,21 @@ app.put('/api/favorites', asyncRoute(async (req, res) => {
 }));
 app.delete('/api/favorites/:type/:id', asyncRoute(async (req, res) => { await library.unfavorite(stringParam(req.params.type), stringParam(req.params.id)); res.status(204).end(); }));
 app.get('/api/history', (_req, res) => res.json(library.history()));
+app.get('/api/history/version', (_req, res) => res.json(library.historyVersion()));
+app.delete('/api/history', asyncRoute(async (_req, res) => {
+  await library.clearHistory();
+  res.status(204).end();
+}));
 app.delete('/api/history/:type/:id', asyncRoute(async (req, res) => {
   await library.forget(stringParam(req.params.type), stringParam(req.params.id));
   res.status(204).end();
 }));
 app.post('/api/history', asyncRoute(async (req, res) => {
-  const item = req.body as HistoryItem;
+  const { historyVersion, ...item } = req.body as HistoryItem & { historyVersion?: number };
   if (!['live','movie','series'].includes(item.type) || !item.id || !item.item) throw new Error('Invalid history item.');
   const position = Number(item.position); const duration = Number(item.duration);
   const checkpointAt = Number(item.checkpointAt);
-  res.json(await library.watched({ ...item, checkpointAt: Number.isFinite(checkpointAt) && checkpointAt > 0 ? checkpointAt : undefined, completed: item.completed === true, position: Number.isFinite(position) ? Math.max(0, position) : 0, duration: Number.isFinite(duration) ? Math.max(0, duration) : 0, watchedAt: Date.now() }));
+  res.json(await library.watched({ ...item, checkpointAt: Number.isFinite(checkpointAt) && checkpointAt > 0 ? checkpointAt : undefined, completed: item.completed === true, position: Number.isFinite(position) ? Math.max(0, position) : 0, duration: Number.isFinite(duration) ? Math.max(0, duration) : 0, watchedAt: Date.now() }, historyVersion));
 }));
 
 app.get('/api/play/:kind/:id', asyncRoute(async (req, res) => {

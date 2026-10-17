@@ -29,6 +29,7 @@ beforeEach(() => {
   vi.spyOn(HTMLMediaElement.prototype, 'textTracks', 'get').mockReturnValue(Object.assign(new EventTarget(), { length: 0 }) as TextTrackList);
   vi.spyOn(HTMLMediaElement.prototype as TrackVideo, 'audioTracks', 'get').mockReturnValue(Object.assign(new EventTarget(), { length: 0 }) as NonNullable<TrackVideo['audioTracks']>);
   vi.spyOn(api, 'watched').mockImplementation(async (row) => ({ ...row, watchedAt: Date.now() }));
+  vi.spyOn(api, 'historyVersion').mockResolvedValue(7);
   vi.spyOn(api, 'epg').mockResolvedValue({ progress: 0 });
 });
 
@@ -39,6 +40,14 @@ afterEach(() => {
 });
 
 describe('watch progress checkpoints', () => {
+  it('keeps the session revision across periodic saves so a deletion cannot be bypassed by refreshing it', () => {
+    mount(); event('loadedmetadata'); event('playing');
+    const captured = vi.mocked(api.watched).mock.calls[0]![0].historyVersion;
+    vi.mocked(api.historyVersion).mockResolvedValue(8);
+    video.currentTime = 120; advance(); event('pause');
+    expect(api.historyVersion).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(api.watched).mock.calls.every(([row]) => row.historyVersion === captured)).toBe(true);
+  });
   it.each([false, true])('resumes the exact episode and advances only when auto-next is enabled (%s)', (enabled) => {
     if (enabled) localStorage.setItem('vidaa-auto-next', 'true');
     else localStorage.removeItem('vidaa-auto-next');

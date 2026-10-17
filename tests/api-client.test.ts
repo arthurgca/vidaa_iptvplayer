@@ -3,6 +3,19 @@ import { api, clearMovieWindows } from '../src/api/client';
 
 afterEach(() => { clearMovieWindows(); vi.restoreAllMocks(); });
 
+it('resolves the captured player revision before sending a checkpoint and clears the complete history endpoint', async () => {
+  let resolve!: (version: number) => void;
+  const historyVersion = new Promise<number>(done => { resolve = done; });
+  const fetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{}'));
+  const saving = api.watched({ type: 'movie', id: 'movie', item: { id: 'movie', name: 'Movie', categoryId: '' }, position: 120, duration: 600, historyVersion }, true);
+  expect(fetch).not.toHaveBeenCalled(); resolve(7); await saving;
+  expect(JSON.parse(fetch.mock.calls[0]![1]!.body as string).historyVersion).toBe(7);
+  expect(fetch.mock.calls[0]![1]!.keepalive).toBe(true);
+  await api.clearHistory(); expect(fetch.mock.calls[1]).toEqual(['/api/history', expect.objectContaining({ method: 'DELETE' })]);
+  await expect(api.watched({ type: 'movie', id: 'movie', item: { id: 'movie', name: 'Movie', categoryId: '' }, position: 0, duration: 0, historyVersion: Promise.reject(new Error('offline')) })).rejects.toThrow('offline');
+  expect(fetch).toHaveBeenCalledTimes(2);
+});
+
 it('requests 20 live channels per page while preserving filters and offset', async () => {
   const result = { offset: 40, limit: 20, total: 205, items: [] };
   const fetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(result)));

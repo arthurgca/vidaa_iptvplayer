@@ -1,7 +1,8 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { HistoryItem } from '../server/types';
 
 let temporary = '';
 
@@ -13,6 +14,77 @@ afterEach(async () => {
 });
 
 describe('content data state', () => {
+  const historyRow = (type: HistoryItem['type'], id: string, checkpointAt = 100): HistoryItem => ({
+    type, id, item: type === 'series' ? { id, name: 'Same episode title', season: 9, episode: Number(id) || 1 } : { id, name: 'Same title', categoryId: '' },
+    ...(type === 'series' ? { series: { id: 'show', name: 'The Office', categoryId: '' } } : {}),
+    position: 120, duration: 600, watchedAt: checkpointAt, checkpointAt
+  });
+  async function setup() {
+    temporary = await mkdtemp(path.join(tmpdir(), 'vidaa-store-'));
+    process.env.DATA_DIR = temporary;
+    return import('../server/store');
+  }
+
+  it('clears all persisted records beyond the read limit, retains favorites and settings, and survives restart', async () => {
+    const { library, initStore } = await setup();
+    const history = Array.from({ length: 150 }, (_, i) => historyRow((['movie', 'series', 'live'] as const)[i % 3]!, String(i), 200 - i));
+    const favorites = [{ type: 'movie', id: 'favorite', item: { id: 'favorite', name: 'Favorite', categoryId: '' }, addedAt: 1 }];
+    const config = JSON.stringify({ xtreamPassword: 'fixture', homePreferencesByProvider: { fixture: { movieCategoryIds: ['1'] } } });
+    await writeFile(path.join(temporary, 'library.json'), JSON.stringify({ history, favorites, contentCleared: false }));
+    await writeFile(path.join(temporary, 'config.json'), config);
+    await initStore(); expect(library.history()).toHaveLength(100);
+    await library.clearHistory();
+    const disk = JSON.parse(await readFile(path.join(temporary, 'library.json'), 'utf8'));
+    expect(disk.history).toEqual([]); expect(disk.favorites).toEqual(favorites); expect(disk.contentCleared).toBe(false);
+    expect(await readFile(path.join(temporary, 'config.json'), 'utf8')).toBe(config);
+    vi.resetModules(); const reloaded = await import('../server/store'); await reloaded.initStore();
+    expect(reloaded.library.history()).toEqual([]); expect(reloaded.library.favorites()).toEqual(favorites);
+    await reloaded.library.clearHistory(); expect(reloaded.library.history()).toEqual([]);
+  });
+
+  it('removes by type and episode ID, preserves chronology, and blocks delayed saves across restart', async () => {
+    const { library } = await setup();
+    const first = historyRow('series', '1', 100); const second = historyRow('series', '2', 300); const movie = historyRow('movie', '1', 200);
+    await Promise.all([first, second, movie].map(row => library.watched(row)));
+    expect(library.history().map(row => [row.type, row.id])).toEqual([['series', '2'], ['movie', '1'], ['series', '1']]);
+    const oldSession = library.historyVersion();
+    await library.forget('series', '1');
+    await expect(library.watched({ ...first, checkpointAt: 9999 }, oldSession)).rejects.toThrow('Watch history changed');
+    // Removing another episode must not interrupt an unrelated active movie.
+    await library.watched({ ...movie, checkpointAt: 400 }, oldSession);
+    vi.resetModules(); const reloaded = await import('../server/store'); await reloaded.initStore();
+    expect(reloaded.library.history().map(row => [row.type, row.id])).toEqual([['movie', '1'], ['series', '2']]);
+    await expect(reloaded.library.watched(first, oldSession)).rejects.toThrow('Watch history changed');
+    await reloaded.library.watched(first, reloaded.library.historyVersion());
+    expect(reloaded.library.history()).toHaveLength(3);
+  });
+
+  it('serializes clear, concurrent favorites, and delayed checkpoints without restoring deleted history', async () => {
+    const { library } = await setup(); const movie = historyRow('movie', 'movie');
+    await library.watched(movie); const version = library.historyVersion();
+    const outcomes = await Promise.allSettled([
+      library.clearHistory(), library.watched({ ...movie, checkpointAt: 9000 }, version),
+      library.favorite({ type: 'movie', id: 'favorite', item: { id: 'favorite', name: 'Favorite', categoryId: '' }, addedAt: 1 })
+    ]);
+    expect(outcomes.map(value => value.status)).toEqual(['fulfilled', 'rejected', 'fulfilled']);
+    expect(library.history()).toEqual([]); expect(library.favorites()).toHaveLength(1);
+    vi.resetModules(); const reloaded = await import('../server/store'); await reloaded.initStore();
+    await expect(reloaded.library.watched(movie, version)).rejects.toThrow('Watch history changed');
+    await reloaded.library.watched(movie, reloaded.library.historyVersion());
+    expect(reloaded.library.history()).toEqual([movie]);
+  });
+
+  it.each(['clear', 'single'] as const)('keeps memory and disk unchanged when %s deletion fails, and recovers the write queue', async kind => {
+    const { library } = await setup(); const movie = historyRow('movie', 'movie'); await library.watched(movie);
+    const disk = await readFile(path.join(temporary, 'library.json'), 'utf8');
+    const blocked = path.join(temporary, 'library.json.tmp'); await mkdir(blocked);
+    await expect(kind === 'clear' ? library.clearHistory() : library.forget('movie', 'movie')).rejects.toThrow();
+    expect(library.history()).toEqual([movie]); expect(library.historyVersion()).toBe(0);
+    expect(await readFile(path.join(temporary, 'library.json'), 'utf8')).toBe(disk);
+    await rm(blocked, { recursive: true });
+    await library.clearHistory(); expect(library.history()).toEqual([]);
+    vi.resetModules(); const reloaded = await import('../server/store'); await reloaded.initStore(); expect(reloaded.library.history()).toEqual([]);
+  });
   it('persists the newest checkpoint when progress requests arrive out of order', async () => {
     temporary = await mkdtemp(path.join(tmpdir(), 'vidaa-store-'));
     process.env.DATA_DIR = temporary;

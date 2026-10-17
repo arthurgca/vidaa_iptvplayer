@@ -124,7 +124,12 @@ export const api = {
   unfavorite: (type: string, id: string) => request<void>(`/api/favorites/${type}/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   moveFavorite: (type: string, id: string, direction: number) => request<Favorite[]>('/api/favorites/move', { method: 'POST', body: JSON.stringify({ type, id, direction }) }),
   history: () => request<HistoryItem[]>('/api/history'),
+  historyVersion: () => request<number>('/api/history/version'),
+  clearHistory: () => request<void>('/api/history', { method: 'DELETE' }),
   forget: (type: string, id: string) => request<void>(`/api/history/${type}/${encodeURIComponent(id)}`, { method: 'DELETE' }),
-  watched: (value: Omit<HistoryItem, 'watchedAt'>, keepalive = false) => request<HistoryItem>('/api/history', { method: 'POST', body: JSON.stringify(value), keepalive }),
+  watched: async (value: Omit<HistoryItem, 'watchedAt'> & { historyVersion?: Promise<number> | number }, keepalive = false) => {
+    const historyVersion = await value.historyVersion;
+    return request<HistoryItem>('/api/history', { method: 'POST', body: JSON.stringify({ ...value, historyVersion }), keepalive });
+  },
   playUrl: (kind: MediaKind, id: string, extension?: string) => `/api/play/${kind}/${encodeURIComponent(id)}${extension ? `?ext=${encodeURIComponent(extension)}` : ''}`
 };

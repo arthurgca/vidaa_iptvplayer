@@ -40,6 +40,7 @@ try {
     socket.send(JSON.stringify({ id, method, params }));
   });
   const address = server.httpServer.address();
+  await command('Emulation.setFocusEmulationEnabled', { enabled: true });
   const [width, height] = (process.env.UI_VIEWPORT || '1920x1080').split('x').map(Number);
   if (!width || !height) throw new Error('UI_VIEWPORT must be WIDTHxHEIGHT.');
   await command('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
