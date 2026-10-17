@@ -14,7 +14,7 @@ export interface HistoryItem { type: MediaKind; id: string; item: Channel | VodI
 export interface GuideRow { channel: Channel; programs: Program[] }
 export interface GuidePage extends Page<GuideRow> { start: number; end: number }
 export interface Page<T> { items: T[]; total: number; offset: number; limit: number }
-export interface AppConfig { xtreamBaseUrl: string; xtreamUsername: string; xtreamPassword: string; xmltvUrl: string; epgRefreshHours: number; preferredLiveFormat: 'auto'|'hls'|'ts'; autoplayLive: boolean; rememberLastChannel: boolean; demoMode: boolean; language: Language; passwordConfigured: boolean; languageConfigured: boolean; configured: boolean }
+export interface AppConfig { managedSettings?: (keyof AppConfig)[]; xtreamBaseUrl: string; xtreamUsername: string; xtreamPassword: string; xmltvUrl: string; epgRefreshHours: number; preferredLiveFormat: 'auto'|'hls'|'ts'; autoplayLive: boolean; rememberLastChannel: boolean; demoMode: boolean; language: Language; passwordConfigured: boolean; languageConfigured: boolean; configured: boolean }
 
 export interface Season { id: string; number?: number; name?: string }
 export interface SeriesInfo { item: SeriesItem; episodes: Episode[]; seasons?: Season[] }

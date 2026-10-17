@@ -1,7 +1,8 @@
+import { configUpdate } from './configValidation.js';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { clearIptvConfig, initConfig, getConfig, isLanguage, languageConfigured, publicConfig, saveConfig } from './config.js';
+import { clearIptvConfig, initConfig, getConfig, languageConfigured, publicConfig, saveConfig } from './config.js';
 import { demoCategories, demoChannels, demoEpisodes, demoSeries, demoVod } from './demo.js';
 import { clearEpg, epgForChannel, epgStatus, initEpg, refreshEpg, scheduleForChannel } from './epg/service.js';
 import { guideStart } from './epg/schedule.js';
@@ -76,31 +77,37 @@ app.get('/api/live/selection', asyncRoute(async (_req, res) => {
 }));
 app.get('/api/config', (_req, res) => res.json(publicConfig()));
 app.put('/api/config', asyncRoute(async (req, res) => {
-  const update = req.body as Record<string, unknown>;
-  if (update.xtreamBaseUrl && !/^https?:\/\//i.test(String(update.xtreamBaseUrl))) throw new Error('Xtream Server must begin with http:// or https://.');
-  if (update.xmltvUrl && !/^https?:\/\//i.test(String(update.xmltvUrl))) throw new Error('XMLTV URL must begin with http:// or https://.');
-  if (update.language !== undefined && !isLanguage(update.language)) throw new Error('Unsupported language.');
-  if (!update.xtreamPassword) delete update.xtreamPassword;
+  const update = configUpdate(req.body);
   const previous = getConfig() as unknown as Record<string, unknown>;
-  const providerChanged = ['xtreamBaseUrl', 'xtreamUsername', 'xtreamPassword', 'demoMode'].some((key) => key in update && update[key] !== previous[key]);
+  const providerChanged = ['xtreamBaseUrl', 'xtreamUsername', 'xtreamPassword', 'demoMode'].some((key) => key in update && update[key as keyof typeof update] !== previous[key]);
   const config = await saveConfig(update);
   // Saving a preference such as the language alone must not throw away a warm catalog or re-download the EPG.
   const touches = (...keys: string[]) => keys.some((key) => key in update);
   if (touches('xtreamBaseUrl', 'xtreamUsername', 'xtreamPassword', 'demoMode')) clearXtreamCache();
   if (providerChanged) await library.restoreContent();
-  if (touches('xmltvUrl', 'epgRefreshHours', 'demoMode') && (config.xmltvUrl || config.demoMode)) void refreshEpg(true);
+  if (touches('xmltvUrl', 'epgRefreshHours', 'demoMode') && (config.xmltvUrl || config.demoMode)) void refreshEpg(true).catch(() => undefined);
   res.json(publicConfig(config));
 }));
 app.post('/api/config/test', asyncRoute(async (req, res) => {
-  const current = getConfig();
-  const baseUrl = stringParam(req.body?.xtreamBaseUrl) || current.xtreamBaseUrl;
-  const username = stringParam(req.body?.xtreamUsername) || current.xtreamUsername;
-  const password = stringParam(req.body?.xtreamPassword) || current.xtreamPassword;
-  if (req.body?.demoMode === true) { res.json({ ok: true, message: 'Demo mode is ready.' }); return; }
-  if (!baseUrl || !username || !password) throw new Error('Server, username, and password are required.');
-  const body = await xtream(undefined, {}, { baseUrl, username, password });
-  if (!validateAccount(body)) throw new Error('The provider did not return an active Xtream account.');
-  res.json({ ok: true, message: 'Connection successful.' });
+  try {
+    const current = { ...getConfig(), ...configUpdate(req.body) };
+    if (current.demoMode) { res.json({ ok: true, message: 'demo' }); return; }
+    const { xtreamBaseUrl: baseUrl, xtreamUsername: username, xtreamPassword: password } = current;
+    if (!baseUrl || !username || !password) { res.status(400).json({ error: 'missing' }); return; }
+    const body = await xtream(undefined, {}, { baseUrl, username, password });
+    if (!validateAccount(body)) {
+      const account = (body as { user_info?: { auth?: unknown } } | null)?.user_info;
+      res.status(400).json({ error: account?.auth === 0 || account?.auth === '0' ? 'auth' : 'response' }); return;
+    }
+    res.json({ ok: true, message: 'connected' });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '';
+    const code = message === 'The IPTV provider timed out.' ? 'timeout'
+      : /HTTP (401|403)\b/.test(message) ? 'auth'
+      : error instanceof SyntaxError ? 'response'
+      : error instanceof TypeError && message === 'fetch failed' ? 'unreachable' : 'failed';
+    res.status(400).json({ error: code });
+  }
 }));
 app.post('/api/refresh', asyncRoute(async (_req, res) => {
   await library.restoreContent();

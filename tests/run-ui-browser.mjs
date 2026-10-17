@@ -1,7 +1,7 @@
 // Real Chromium regression/profiling without an extra automation dependency.
 // BROWSER_PATH can point to Chrome/Edge on other operating systems.
 import { spawn } from 'node:child_process';
-import { access, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { createServer } from 'vite';
@@ -40,6 +40,9 @@ try {
     socket.send(JSON.stringify({ id, method, params }));
   });
   const address = server.httpServer.address();
+  const [width, height] = (process.env.UI_VIEWPORT || '1920x1080').split('x').map(Number);
+  if (!width || !height) throw new Error('UI_VIEWPORT must be WIDTHxHEIGHT.');
+  await command('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
   await command('Page.navigate', { url: `http://127.0.0.1:${address.port}/tests/fixtures/ui-stability.html` });
   let report;
   for (let attempt = 0; attempt < 300; attempt++) {
@@ -50,6 +53,10 @@ try {
   }
   if (!report?.done) throw new Error('Browser regression timed out.');
   if (report.error) throw new Error(report.error);
+  if (process.env.UI_SCREENSHOT) {
+    const screenshot = await command('Page.captureScreenshot', { format: 'png' });
+    await writeFile(process.env.UI_SCREENSHOT, Buffer.from(screenshot.data, 'base64'));
+  }
   console.log(JSON.stringify(report.reports, null, 2));
   console.log('Chromium UI stability checks passed. Native VIDAA keyboard still requires hardware validation.');
   await command('Browser.close');

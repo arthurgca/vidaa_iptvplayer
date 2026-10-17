@@ -59,10 +59,11 @@ describe('remote page jumps in long screens', () => {
     vi.spyOn(api, 'config').mockResolvedValue({ xtreamBaseUrl: '', xtreamUsername: '', xtreamPassword: '', xmltvUrl: '', epgRefreshHours: 6, preferredLiveFormat: 'auto', autoplayLive: false, rememberLastChannel: true, demoMode: true, language: 'en', passwordConfigured: false, languageConfigured: true, configured: true });
     const save = vi.spyOn(api, 'saveConfig');
     await openHome(5);
-    act(() => { focus.focus('settings:language'); });
-    await press('PageDown'); expect(focus.focused).toBe('settings:format');
+    act(() => { focus.focus('settings:tab:general'); });
+    await press('ArrowRight'); expect(focus.focused).toBe('settings:tab:provider');
+    await press('ArrowDown'); expect(focus.focused).toBe('settings:xtreamBaseUrl');
     await press('PageDown'); expect(focus.focused).toBe('settings:test');
-    await press('PageUp'); expect(focus.focused).toBe('settings:format');
+    await press('PageUp'); expect(focus.focused).toBe('settings:xtreamBaseUrl');
     expect(document.activeElement?.tagName).toBe('DIV');
     expect(save).not.toHaveBeenCalled();
   });

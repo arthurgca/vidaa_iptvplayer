@@ -200,27 +200,51 @@ div.poster { min-height: 8rem }
 .recent-row b { flex: none; color: var(--focus); opacity: .55 }
 
 /* ---- Settings ------------------------------------------------------------ */
-/* The form, not the screen, is the scroll container: a scroll container drops its own bottom
-   padding once content overflows, which would push the action row past the safe area. */
-.settings-screen { padding-left: 11%; padding-right: 11% }
-.settings-screen header { flex: none; margin-bottom: 1.2rem }
-.settings-screen header p { margin-bottom: 0; color: var(--text-dim); font-size: 1rem }
-.settings-form { flex: 1; min-height: 0; overflow-y: auto; display: grid; grid-template-columns: 1fr 1fr; align-content: start; gap: .9rem 1.4rem; padding: 1.3rem; background: var(--surface); border: var(--hairline) solid var(--line); border-radius: var(--radius-lg) }
-.settings-form label { display: flex; flex-direction: column; gap: .5rem; color: var(--text-dim); font-size: .85rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase }
-.settings-form label small { color: var(--text-faint); font-size: .8rem }
-.settings-form input, .settings-form select { width: 100%; padding: .6rem .8rem; color: #fff; font-size: 1rem; text-transform: none; letter-spacing: normal; background: var(--surface-2); border: .12rem solid var(--line-strong); border-radius: var(--radius-sm) }
-.settings-control { display: flex; width: 100%; border-radius: var(--radius-sm) }
-.settings-row, .toggle-row, .form-actions, .form-message { grid-column: 1 / -1 }
-.settings-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1.4rem }
-.toggle-row { display: flex; flex-wrap: wrap; gap: 1rem }
-.toggle-control { display: inline-flex; align-items: center; gap: .6rem; padding: .65rem .9rem; background: var(--surface-2); border-radius: var(--radius-sm); color: var(--text-dim); font-size: .95rem; font-weight: 700 }
-.toggle-box { position: relative; flex: none; width: 1.25rem; height: 1.25rem; background: var(--bg); border: .14rem solid var(--line-strong); border-radius: .25rem }
-.toggle-box.checked { background: var(--accent); border-color: var(--focus) }
-.toggle-box.checked:after { content: ""; position: absolute; left: .3rem; top: .04rem; width: .28rem; height: .6rem; border: solid #fff; border-width: 0 .14rem .14rem 0; transform: rotate(45deg) }
-.form-actions { display: flex; flex-wrap: wrap; gap: 1rem }
-.form-message { margin: 0; font-size: 1rem; font-weight: 700 }
-.success { color: #7de8ae }
-.app-version { flex: none; padding-top: .7rem; text-align: right; color: var(--text-faint); font-size: .82rem; font-weight: 700; font-variant-numeric: tabular-nums }
+/* Settings has one bounded content pane; actions stay inside the TV safe area. */
+.settings-screen { position: relative; padding-left: 8%; padding-right: 8% }
+.settings-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 2rem; flex: none; margin-bottom: 1rem }
+.settings-header p { max-width: 25rem; margin: 0; color: var(--text-dim); font-size: .95rem }
+.settings-tabs { display: flex; flex: none; gap: .6rem; padding: .4rem .3rem .9rem }
+.settings-tab { padding: .65rem 1.15rem; color: var(--text-dim); font-weight: 700 }
+.settings-tab.selected { background: var(--accent-soft); color: var(--focus); border-bottom-color: var(--focus) }
+.settings-screen .focusable:focus { transform: none }
+.settings-form { flex: 1; min-height: 0; display: flex; flex-direction: column; background: var(--surface); border: var(--hairline) solid var(--line); border-radius: var(--radius-lg); overflow: hidden }
+.settings-pane { flex: 1; min-height: 0; overflow-y: auto; padding: 1.2rem 1.7rem; scrollbar-width: none }
+.settings-pane::-webkit-scrollbar { display: none }
+.settings-pane h2 { font-size: 1.3rem; margin-bottom: .4rem }
+.settings-section-help { color: var(--text-dim); font-size: .85rem; margin-bottom: .7rem; max-width: 57rem }
+.settings-field { display: grid; grid-template-columns: minmax(15rem, 1fr) minmax(18rem, 29rem); gap: 1.5rem; align-items: center; padding: .65rem .3rem; border-bottom: var(--hairline) solid var(--line) }
+.settings-label { font-size: 1rem; font-weight: 700; line-height: 1.3 }
+.settings-label small { display: block; margin-top: .25rem; max-width: 28rem; font-size: .78rem; font-weight: 400; color: var(--text-dim); line-height: 1.4 }
+.settings-label small.settings-managed { color: var(--focus) }
+.settings-control { display: flex; flex-direction: column; width: 100%; border-radius: var(--radius-sm) }
+.settings-control input { width: 100%; min-height: 2.8rem; padding: .65rem .9rem; color: var(--text); font-size: 1rem; background: var(--surface-2); border: .12rem solid var(--line-strong); border-radius: var(--radius-sm); user-select: text }
+.settings-control input[readonly] { color: var(--text-dim) }
+.settings-control input::placeholder { color: var(--text-faint); font-size: .9rem }
+.settings-field-error { padding: .4rem; color: #ffb4b4; font-size: .8rem }
+.settings-value { display: flex; align-items: center; justify-content: space-between; min-height: 2.8rem; width: 100%; padding: .5rem .9rem; background: var(--surface-2); border-color: var(--line-strong) }
+.settings-value strong { font-size: 1rem; font-weight: 600 }
+.settings-switch { width: 2.4rem; border-radius: .6rem; padding: .1rem; text-align: center; background: var(--bg); color: var(--text-dim); border: var(--hairline) solid var(--line-strong) }
+.settings-switch.checked { color: var(--focus); background: var(--accent-soft) }
+.settings-inline-action { display: flex; justify-content: flex-end; padding-top: .75rem }
+.settings-maintenance { display: flex; flex-wrap: wrap; gap: .7rem; padding: .7rem .3rem }
+.settings-maintenance p { width: 100%; color: var(--text-dim); font-size: .82rem; margin: .2rem 0 }
+.settings-maintenance .danger-button { font-size: .85rem }
+.settings-save-bar { flex: none; display: flex; align-items: center; gap: 1rem; border-top: var(--hairline) solid var(--line-strong); padding: .8rem 1.5rem; background: #101923; min-height: 5rem }
+.settings-save-bar > div { flex: 1; min-width: 0; font-size: .85rem; color: var(--text-dim) }
+.settings-save-bar strong.settings-dirty { color: var(--focus) }
+.settings-save-bar p { margin: .25rem 0 0; font-size: .8rem; line-height: 1.35 }
+.settings-save-bar p.error { color: #ffb4b4 }
+.settings-save-bar button { flex: none }
+.settings-modal { position: absolute; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center; background: rgba(3,7,13,.9) }
+.settings-dialog { position: relative; width: 38rem; max-height: 90%; padding: 1.8rem; background: #121e2e; border: .1rem solid #3b526b; border-radius: 1rem; box-shadow: 0 1rem 5rem #000; display: flex; flex-direction: column }
+.settings-dialog h2 { font-size: 1.5rem; padding-right: 1rem; margin-bottom: 1rem }
+.settings-dialog p { font-size: 1rem; line-height: 1.6; color: var(--text-dim) }
+.settings-dialog-options { display: flex; flex-direction: column; gap: .7rem; min-height: 0; overflow-y: auto; padding: .4rem }
+.settings-choice { display: flex; justify-content: space-between; flex: none; padding: .8rem 1rem; background: var(--surface-2) }
+.settings-choice.selected { color: var(--focus); border-color: var(--line-strong) }
+.settings-dialog-close { position: absolute; right: .6rem; top: .4rem; color: var(--text-dim); background: transparent; border: 0; font-size: 1.5rem }
+.app-version { padding-top: 1rem; color: var(--text-faint); font-size: .85rem; font-variant-numeric: tabular-nums }
 
 /* ---- Player -------------------------------------------------------------- */
 .player-screen { position: relative; width: 100%; height: 100%; background: #000; overflow: hidden }

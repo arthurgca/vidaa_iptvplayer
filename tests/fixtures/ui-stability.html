@@ -8,6 +8,8 @@ import { useState } from 'preact/hooks';
 import { api } from '/src/api/client.ts';
 import { MediaCatalog } from '/src/screens/MediaCatalog.tsx';
 import { LiveTV } from '/src/screens/LiveTV.tsx';
+import { Settings } from '/src/screens/Settings.tsx';
+import { listenToRemote } from '/src/platform/remote.ts';
 import { useFocusManager } from '/src/navigation/FocusContext.tsx';
 
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -70,6 +72,51 @@ async function run() {
     render(null, root);
     await wait(0);
   }
+  const config = { xtreamBaseUrl: 'https://provider.invalid:8080/custom', xtreamUsername: 'fixture', xtreamPassword: '', passwordConfigured: true, xmltvUrl: '', epgRefreshHours: 6, preferredLiveFormat: 'auto', autoplayLive: false, rememberLastChannel: true, demoMode: false, language: 'en', languageConfigured: true, configured: true };
+  let resolveStatus, action;
+  api.config = async () => ({ ...config });
+  api.status = () => new Promise(resolve => { resolveStatus = resolve; });
+  let saves = 0, tests = 0;
+  api.saveConfig = async value => { saves++; Object.assign(config, value); return { ...config }; };
+  api.testConfig = async value => { tests++; check(value.xtreamUsername === 'edited', 'Settings: test ignored draft'); return { ok: true, message: 'connected' }; };
+  const stop = listenToRemote(value => action?.(value));
+  function SettingsHarness() {
+    focus = useFocusManager();
+    return h(Settings, { language: 'en', setLanguage() {}, saved() {}, cleared() {}, leave() {}, registerAction(value) { action = value; } });
+  }
+  render(h(SettingsHarness), root); await wait(80);
+  const select = async name => { focus.focus(`settings:${name}`); focus.select(); await wait(25); };
+  const press = async key => { (document.activeElement || document).dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })); await wait(25); };
+  await select('tab:provider'); await select('xtreamUsername');
+  const input = root.querySelector('input[id="settings:xtreamUsername"]'); let blur = 0;
+  input.addEventListener('blur', () => blur++);
+  for (const value of ['e', 'ed', 'edi', 'edited']) {
+    input.value = value; input.setSelectionRange(value.length, value.length); input.dispatchEvent(new Event('input', { bubbles: true }));
+    if (resolveStatus) { resolveStatus({ version: '1.2.2' }); resolveStatus = null; }
+    await wait(30);
+    check(root.querySelector('input[id="settings:xtreamUsername"]') === input, 'Settings: input remounted');
+    check(document.activeElement === input && input.selectionStart === value.length && input.value === value, 'Settings: input focus/cursor changed');
+  }
+  await press('Backspace'); check(document.activeElement === input && blur === 0, 'Settings: Backspace closed keyboard');
+  const unexpectedBlur = blur;
+  await press('Escape'); check(document.activeElement !== input, 'Settings: Back did not finish editing');
+  await select('test'); check(tests === 1 && saves === 0, 'Settings: test persisted configuration');
+  await select('save'); check(saves === 1 && root.textContent.includes('All changes saved'), 'Settings: save failed');
+  await select('tab:data'); await select('clear-content');
+  check(root.querySelector('[role=dialog]')?.textContent.includes('favorites, history, watch progress'), 'Settings: destructive scope missing');
+  await press('Escape'); check(focus.focused === 'settings:clear-content', 'Settings: modal focus not restored');
+  check(document.activeElement?.textContent.includes('Clear catalogs'), 'Settings: dialog did not restore DOM focus');
+  for (const section of ['general', 'provider', 'playback', 'data']) {
+    await select(`tab:${section}`);
+    check(document.activeElement?.textContent === ({ general: 'General', provider: 'Provider & connection', playback: 'Playback', data: 'EPG & data' })[section], 'Settings: tab DOM focus lost');
+    const form = root.querySelector('.settings-form').getBoundingClientRect();
+    const footer = root.querySelector('.settings-save-bar').getBoundingClientRect();
+    check(footer.bottom <= innerHeight && footer.top >= form.top && footer.width > 0, 'Settings: actions escaped safe area');
+    check(root.querySelector('.settings-pane').clientHeight > 0, 'Settings: content collapsed');
+  }
+  await select('tab:provider');
+  reports.push({ kind: 'settings', viewport: `${innerWidth}x${innerHeight}`, edits: 4, unexpectedBlur, saves, tests, dialogs: 'confirmed scope and restored focus', layout: 'all sections keep actions visible' });
+  stop();
   return reports;
 }
 window.uiStability = { done: false };

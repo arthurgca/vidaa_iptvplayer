@@ -1,111 +1,235 @@
-import { useEffect, useRef, useState } from 'preact/hooks';
-import { RemoteHint } from '../components/RemoteHint';
+import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { api } from '../api/client';
-import { clearEpgCache } from '../api/epg';
 import { ErrorState, Spinner } from '../components/common';
 import { useTranslate } from '../i18n/I18nContext';
-import { LANGUAGES, type Language } from '../i18n';
-import { Focusable, useFocusProxy } from '../navigation/FocusContext';
+import { LANGUAGES, type Language, type TranslationKey } from '../i18n';
+import { Focusable, useFocusManager, useFocusProxy } from '../navigation/FocusContext';
+import type { RemoteAction } from '../platform/remote';
 import type { AppConfig } from '../types';
 import { APP_VERSION } from '../version';
 
-const useFieldProxy = (focusKey: string, index: number, activate: () => void) =>
-  useFocusProxy({ focusKey, group: 'settings-controls', index, orientation: 'vertical', activate });
+const sections = ['general', 'provider', 'playback', 'data'] as const;
+type Section = typeof sections[number];
+type Field = 'language' | 'xtreamBaseUrl' | 'xtreamUsername' | 'xtreamPassword' | 'xmltvUrl' | 'demoMode' | 'preferredLiveFormat' | 'autoplayLive' | 'rememberLastChannel' | 'epgRefreshHours';
+const fields: Field[] = ['language', 'xtreamBaseUrl', 'xtreamUsername', 'xtreamPassword', 'xmltvUrl', 'demoMode', 'preferredLiveFormat', 'autoplayLive', 'rememberLastChannel', 'epgRefreshHours'];
+const controlKeys: Record<Section, string[]> = {
+  general: ['language'], provider: ['xtreamBaseUrl', 'xtreamUsername', 'xtreamPassword', 'demoMode', 'test'],
+  playback: ['preferredLiveFormat', 'autoplayLive', 'rememberLastChannel'], data: ['xmltvUrl', 'epgRefreshHours', 'refresh', 'clear-content', 'clear-all']
+};
+const key = (value: string) => `settings:${value}`;
+type Choice = { value: string; label: string };
+type Dialog = { title: string; help?: string; choices: Choice[]; selected?: string; choose: (value: string) => void };
 
-interface RemoteInputProps {
-  focusKey: string; index: number; label: preact.ComponentChildren; value: string;
-  type?: string; placeholder?: string; autocomplete?: string; input: (value: string) => void;
-}
-
-function RemoteInput({ focusKey, index, label, value, type = 'text', placeholder, autocomplete, input }: RemoteInputProps) {
-  const target = useRef<HTMLInputElement>(null);
-  const proxy = useFieldProxy(focusKey, index, () => { target.current?.focus(); target.current?.click(); });
-  return <label>{label}<div {...proxy} className="settings-control" data-focus-proxy>
-    <input ref={target} tabIndex={-1} type={type} value={value} placeholder={placeholder} autocomplete={autocomplete} onInput={(event) => input(event.currentTarget.value)} />
-  </div></label>;
-}
-
-interface RemoteSelectProps {
-  focusKey: string; index: number; label: preact.ComponentChildren; value: string | number;
-  options: { value: string | number; label: string }[]; change: (value: string) => void;
-}
-
-function RemoteSelect({ focusKey, index, label, value, options, change }: RemoteSelectProps) {
-  const target = useRef<HTMLSelectElement>(null);
-  const proxy = useFieldProxy(focusKey, index, () => { target.current?.focus(); target.current?.click(); });
-  return <label>{label}<div {...proxy} className="settings-control" data-focus-proxy>
-    <select ref={target} tabIndex={-1} value={value} onChange={(event) => change(event.currentTarget.value)}>{options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select>
-  </div></label>;
-}
-
-interface SettingsProps { firstRun?: boolean; language: Language; setLanguage: (language: Language) => void; saved: () => void; cleared: () => void }
-
-export function Settings({ firstRun = false, language, setLanguage, saved, cleared }: SettingsProps) {
+/** Module-level identity and a stable proxy keep the native keyboard open through updates. */
+function RemoteInput({ name, label, value, password, help, locked, busy, error, change }: {
+  name: Field; label: string; value: string; password?: boolean; help?: string; locked: boolean; busy: boolean; error?: string; change: (value: string) => void;
+}) {
+  const input = useRef<HTMLInputElement>(null);
   const t = useTranslate();
-  const [config, setConfig] = useState<AppConfig>(); const [error, setError] = useState(''); const [message, setMessage] = useState(''); const [busy, setBusy] = useState(false);
-  const [confirmClear, setConfirmClear] = useState<'content' | 'all'>();
-  // The backend reports its own version so a TV still serving a cached bundle shows up as a mismatch.
+  const proxy = useFocusProxy({ focusKey: key(name), group: 'settings-controls', index: fields.indexOf(name), activate: () => {
+    if (!locked && !busy) { input.current?.focus(); input.current?.click(); }
+  } });
+  return <label className="settings-field" htmlFor={key(name)}><span className="settings-label">{label}{help && <small>{help}</small>}{locked && <small className="settings-managed">{t('settings.ui.managed')}</small>}</span>
+    <div {...proxy} className="settings-control" data-focus-proxy>
+      <input id={key(name)} ref={input} tabIndex={-1} type={password ? 'password' : 'text'} value={value} readOnly={locked || busy}
+        autocomplete={password ? 'current-password' : name === 'xtreamUsername' ? 'username' : 'off'} spellcheck={false}
+        aria-invalid={Boolean(error)} aria-describedby={error ? `${key(name)}:error` : undefined}
+        placeholder={locked ? t('settings.ui.managedSecret') : password && help ? t('settings.passwordSaved') : ''}
+        onInput={event => change(event.currentTarget.value)}
+        onKeyDown={event => {
+          if (event.key === 'Backspace' || event.keyCode === 8) event.stopPropagation();
+          if (event.key === 'Enter' || event.keyCode === 13) { event.preventDefault(); event.stopPropagation(); input.current?.blur(); event.currentTarget.closest<HTMLElement>('[data-focus-proxy]')?.focus(); }
+        }} />
+      {error && <small id={`${key(name)}:error`} className="settings-field-error">{error}</small>}
+    </div>
+  </label>;
+}
+
+function SettingsDialog({ dialog, close }: { dialog: Dialog; close: () => void }) {
+  const focus = useFocusManager(); const opener = useRef(focus.focused);
+  const t = useTranslate();
+  useLayoutEffect(() => {
+    focus.setScope('settings-dialog', `settings-dialog:${dialog.selected ?? dialog.choices[0]!.value}`);
+    return () => { focus.setScope('root'); focus.focus(opener.current); };
+  }, []);
+  return <div className="settings-modal"><div className="settings-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-dialog-title">
+    <h2 id="settings-dialog-title">{dialog.title}</h2>{dialog.help && <p>{dialog.help}</p>}
+    <div className="settings-dialog-options">{dialog.choices.map((choice, index) => <Focusable key={choice.value} focusKey={`settings-dialog:${choice.value}`} group="settings-dialog" index={index} orientation="vertical" className={`settings-choice${dialog.selected === choice.value ? ' selected' : ''}`} onSelect={() => dialog.choose(choice.value)}><span>{choice.label}</span>{dialog.selected === choice.value && <span>✓</span>}</Focusable>)}</div>
+    <button type="button" className="settings-dialog-close" onClick={close} tabIndex={-1} aria-label={t('settings.ui.cancel')}>×</button>
+  </div></div>;
+}
+
+interface SettingsProps {
+  firstRun?: boolean; language: Language; setLanguage: (language: Language) => void; saved: () => void; cleared: () => void;
+  leave?: () => void; registerAction?: (handler: ((action: RemoteAction) => boolean) | null) => void;
+}
+
+export function Settings({ firstRun = false, language, setLanguage, saved, cleared, leave, registerAction }: SettingsProps) {
+  const t = useTranslate(); const focus = useFocusManager();
+  const [config, setConfig] = useState<AppConfig>(); const [baseline, setBaseline] = useState<AppConfig>();
+  const [section, setSection] = useState<Section>(firstRun ? 'provider' : 'general');
+  const [error, setError] = useState(''); const [message, setMessage] = useState('');
+  const [invalid, setInvalid] = useState<Partial<Record<Field, string>>>({});
+  const [busy, setBusy] = useState(''); const busyRef = useRef(false);
+  const [dialog, setDialog] = useState<Dialog>();
   const [serverVersion, setServerVersion] = useState(APP_VERSION);
-  useEffect(() => { api.config().then(setConfig).catch((reason) => setError(reason.message)); }, []);
-  useEffect(() => { api.status().then((status) => setServerVersion(status.version)).catch(() => undefined); }, []);
+  const pane = useRef<HTMLDivElement>(null); const scrolls = useRef<Partial<Record<Section, number>>>({});
+  const lastControl = useRef<Partial<Record<Section, string>>>({});
+  const action = useRef<(action: RemoteAction) => boolean>(() => false);
+  useLayoutEffect(() => { registerAction?.(value => action.current(value)); return () => registerAction?.(null); }, []);
   useEffect(() => {
-    if (!firstRun) return;
-    const timer = window.setInterval(() => { api.status().then((status) => { if (status.configured) saved(); }).catch(() => undefined); }, 3000);
-    return () => window.clearInterval(timer);
-  }, [firstRun]);
+    let active = true;
+    api.config().then(value => { if (active) { const next = { ...value, language: value.languageConfigured ? value.language : language }; setConfig(next); setBaseline(next); } }).catch(() => { if (active) setError(t('settings.ui.loadError')); });
+    api.status().then(status => { if (active) setServerVersion(status.version); }).catch(() => undefined);
+    return () => { active = false; };
+  }, []);
+  useLayoutEffect(() => { if (pane.current) pane.current.scrollTop = scrolls.current[section] ?? 0; }, [section]);
+  useLayoutEffect(() => { if (config) focus.focus(key(`tab:${section}`)); }, [Boolean(config)]);
+  const managed = (name: Field) => Boolean(config?.managedSettings?.includes(name));
+  const edits: Partial<AppConfig> = {};
+  if (config && baseline) for (const name of fields) {
+    if (!managed(name) && config[name] !== baseline[name]) (edits as Record<string, unknown>)[name] = config[name];
+  }
+  const dirty = Object.keys(edits).length > 0;
   useEffect(() => {
-    if (!confirmClear) return;
-    const timer = window.setTimeout(() => setConfirmClear(undefined), 5000);
-    return () => window.clearTimeout(timer);
-  }, [confirmClear]);
+    if (!dirty) return;
+    const prevent = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
+    window.addEventListener('beforeunload', prevent); return () => window.removeEventListener('beforeunload', prevent);
+  }, [dirty]);
+  const change = (name: Field, value: string | number | boolean) => {
+    if (!config || busyRef.current || managed(name)) return;
+    setConfig({ ...config, [name]: value }); setInvalid(previous => ({ ...previous, [name]: undefined })); setMessage(''); setError('');
+  };
+  const switchSection = (next: Section) => {
+    if (dialog) return;
+    if (pane.current) scrolls.current[section] = pane.current.scrollTop;
+    setSection(next);
+    focus.focus(key(`tab:${next}`));
+  };
+  const requestLeave = () => {
+    if (busyRef.current) return;
+    if (!dirty) { (leave ?? saved)(); return; }
+    setDialog({ title: t('settings.ui.leaveTitle'), help: t('settings.ui.leaveHelp'), choices: [{ value: 'cancel', label: t('settings.ui.cancel') }, { value: 'discard', label: t('settings.ui.discard') }], choose: value => { setDialog(undefined); if (value === 'discard') (leave ?? saved)(); } });
+  };
+  const controls = controlKeys[section].filter(value => !firstRun || !['refresh', 'clear-content', 'clear-all'].includes(value));
+  const sequence = [...controls, 'save', 'exit'].map(key);
+  action.current = remote => {
+    if (dialog) {
+      if (remote === 'BACK') setDialog(undefined);
+      else if (remote === 'SELECT') focus.select();
+      else if (['NAV_UP', 'NAV_LEFT', 'CHANNEL_UP'].includes(remote)) focus.jump('settings-dialog', -1);
+      else if (['NAV_DOWN', 'NAV_RIGHT', 'CHANNEL_DOWN'].includes(remote)) focus.jump('settings-dialog', 1);
+      return true;
+    }
+    if (remote === 'BACK') { requestLeave(); return true; }
+    if (remote === 'SELECT') { focus.select(); return true; }
+    const tab = sections.findIndex(value => focus.focused === key(`tab:${value}`));
+    if (tab >= 0) {
+      if (remote === 'NAV_LEFT' || remote === 'NAV_RIGHT') {
+        const next = sections[Math.max(0, Math.min(sections.length - 1, tab + (remote === 'NAV_LEFT' ? -1 : 1)))]!;
+        switchSection(next); focus.focus(key(`tab:${next}`));
+      } else if (remote === 'NAV_DOWN' || remote === 'CHANNEL_DOWN') focus.focus(lastControl.current[section] ?? key(controls[0]!));
+      return true;
+    }
+    const index = sequence.indexOf(focus.focused);
+    if (index >= 0) {
+      if (index < controls.length) lastControl.current[section] = focus.focused;
+      if (focus.focused === key('save') || focus.focused === key('exit')) {
+        if (remote === 'NAV_UP') focus.focus(key(controls[controls.length - 1]!));
+        if (remote === 'NAV_LEFT') focus.focus(key('save'));
+        if (remote === 'NAV_RIGHT') focus.focus(key('exit'));
+        if (remote === 'CHANNEL_UP') focus.focus(key(controls[0]!));
+        if (remote === 'CHANNEL_DOWN') focus.focus(key(controls[controls.length - 1]!));
+        return true;
+      }
+      if (remote === 'NAV_UP') focus.focus(index === 0 ? key(`tab:${section}`) : sequence[index - 1]!);
+      if (remote === 'NAV_DOWN') focus.focus(sequence[Math.min(sequence.length - 1, index + 1)]!);
+      if (remote === 'CHANNEL_UP') focus.focus(key(controls[0]!));
+      if (remote === 'CHANNEL_DOWN') focus.focus(key(controls[controls.length - 1]!));
+    }
+    return true;
+  };
   if (!config) return error ? <ErrorState error={error} /> : <Spinner label={t('settings.loading')} />;
-  const field = (key: keyof AppConfig, value: string | boolean | number) => setConfig({ ...config, [key]: value });
-  const run = (action: () => Promise<unknown>, success: string, after?: () => void) => { setBusy(true); setError(''); setMessage(''); action().then(() => { setMessage(success); after?.(); }).catch((reason) => setError(reason.message)).finally(() => setBusy(false)); };
-  // The language switches the moment it is picked — waiting for Save would leave the chooser
-  // arguing with the screen around it — and is persisted on its own so it survives a first run
-  // abandoned before any credentials are entered.
-  const changeLanguage = (value: string) => {
-    const next = value === 'pt' ? 'pt' : 'en';
-    setLanguage(next); setConfig({ ...config, language: next });
-    api.saveConfig({ language: next }).catch(() => undefined);
+  const run = async (name: string, operation: () => Promise<void>, failure: string) => {
+    if (busyRef.current) return;
+    busyRef.current = true; setBusy(name); setError(''); setMessage('');
+    try { await operation(); } catch { setError(failure); } finally { busyRef.current = false; setBusy(''); }
   };
-  const clearData = (scope: 'content' | 'all') => {
-    if (confirmClear !== scope) { setConfirmClear(scope); setError(''); setMessage(''); return; }
-    setBusy(true); setError(''); setMessage('');
-    const action = scope === 'all' ? api.clearAllData : api.clearData;
-    action().then((next) => {
-      clearEpgCache(); setConfig(next); setConfirmClear(undefined); cleared();
-      if (scope === 'content') setMessage(t('settings.contentCleared'));
-      else setMessage(next.configured ? t('settings.clearedEnvironment') : t('settings.cleared'));
-    }).catch((reason) => setError(reason.message)).finally(() => setBusy(false));
+  const validUrls = (names: Array<'xtreamBaseUrl' | 'xmltvUrl'> = ['xtreamBaseUrl', 'xmltvUrl']) => {
+    const errors: Partial<Record<Field, string>> = {};
+    for (const name of names) {
+      if (managed(name) || !config[name]) continue;
+      try { const url = new URL(config[name]); if (!['http:', 'https:'].includes(url.protocol) || name === 'xtreamBaseUrl' && (url.username || url.password)) throw new Error(); }
+      catch { errors[name] = t('settings.ui.urlError'); }
+    }
+    setInvalid(errors);
+    if (Object.keys(errors).length) { setError(t('settings.ui.urlError')); return false; }
+    return true;
   };
-  return <main className="screen settings-screen"><header><span className="eyebrow">{firstRun ? t('settings.firstRun.eyebrow') : t('settings.eyebrow')}</span><h1>{firstRun ? t('settings.firstRun.title') : t('settings.title')}</h1><p>{firstRun ? <RemoteHint id="settings.firstRun.help" /> : t('settings.help')}</p></header>
-    <form className="settings-form" onSubmit={(e) => e.preventDefault()}>
-      <div className="settings-row">
-        <RemoteSelect focusKey="settings:language" index={0} label={t('settings.language')} value={language} change={changeLanguage} options={LANGUAGES.map((option) => ({ value: option.value, label: option.label }))} />
+  const save = () => {
+    if (!dirty || !validUrls()) return;
+    void run('save', async () => {
+      const next = await api.saveConfig({ ...(!config.languageConfigured ? { language: config.language } : {}), ...edits }); setConfig(next); setBaseline(next); setLanguage(next.language); setMessage(t('settings.ui.savedHelp'));
+      if (firstRun && next.configured) saved();
+    }, t('settings.ui.saveError'));
+  };
+  const test = () => {
+    if (!validUrls(['xtreamBaseUrl'])) return;
+    void run('test', async () => {
+      try { const result = await api.testConfig(config); setMessage(t(result.message === 'demo' ? 'settings.ui.demo' : 'settings.ui.connected')); }
+      catch (reason) {
+        const code = reason instanceof Error ? reason.message : '';
+        setError(['timeout', 'auth', 'response', 'unreachable', 'missing'].includes(code) ? t(`settings.ui.${code}` as TranslationKey) : t('settings.ui.failed'));
+      }
+    }, t('settings.ui.failed'));
+  };
+  const maintenance = (scope: 'refresh' | 'content' | 'all') => {
+    if (busyRef.current) return;
+    if (dirty) { setError(t('settings.ui.saveFirst')); return; }
+    if (scope === 'refresh') {
+      void run('refresh', async () => { await api.refresh(); cleared(); setMessage(t('settings.ui.refreshOk')); }, t('settings.ui.operationError')); return;
+    }
+    setDialog({ title: t(scope === 'all' ? 'settings.ui.clearAllTitle' : 'settings.ui.clearTitle'),
+      help: t('settings.ui.clearHelp') + (scope === 'all' ? ' ' + t('settings.ui.clearAllHelp') : ''),
+      choices: [{ value: 'cancel', label: t('settings.ui.cancel') }, { value: 'delete', label: t('settings.ui.confirmDelete') }], choose: value => {
+        setDialog(undefined); if (value !== 'delete') return;
+        void run(scope, async () => {
+          const next = await (scope === 'all' ? api.clearAllData() : api.clearData()); setConfig(next); setBaseline(next); cleared();
+          setMessage(t(scope === 'all' ? 'settings.ui.clearAllOk' : 'settings.ui.clearOk'));
+        }, t('settings.ui.operationError'));
+      } });
+  };
+  const input = (name: Field, label: string, help?: string) => <RemoteInput key={name} name={name} label={label} value={String(config[name])} locked={managed(name)} busy={Boolean(busy)} password={name === 'xtreamPassword'} help={help} error={invalid[name]} change={value => change(name, value)} />;
+  const select = (name: Field, label: string, options: Choice[], help?: string) => {
+    const selected = String(config[name]);
+    const selectedLabel = options.find(option => option.value === selected)?.label ?? selected;
+    const all = options.some(option => option.value === selected) ? options : [{ value: selected, label: selectedLabel }, ...options];
+    return <div className="settings-field"><span className="settings-label">{label}{help && <small>{help}</small>}{managed(name) && <small className="settings-managed">{t('settings.ui.managed')}</small>}</span>
+      <Focusable focusKey={key(name)} group="settings-controls" index={fields.indexOf(name)} className="settings-value" onSelect={() => {
+        if (managed(name) || busyRef.current) return;
+        focus.focus(key(name));
+        setDialog({ title: label, choices: [...all, { value: '__cancel', label: t('settings.ui.cancel') }], selected, choose: value => { setDialog(undefined); if (value !== '__cancel') change(name, name === 'epgRefreshHours' ? Number(value) : value); } });
+      }}><strong>{selectedLabel}</strong><span>{managed(name) ? '—' : '⌄'}</span></Focusable></div>;
+  };
+  const toggle = (name: Field, label: string, help?: string) => <div className="settings-field"><span className="settings-label">{label}{help && <small>{help}</small>}{managed(name) && <small className="settings-managed">{t('settings.ui.managed')}</small>}</span>
+    <Focusable focusKey={key(name)} group="settings-controls" index={fields.indexOf(name)} className="settings-value" onSelect={() => change(name, !config[name])}><strong>{t(config[name] ? 'settings.ui.on' : 'settings.ui.off')}</strong><span className={`settings-switch${config[name] ? ' checked' : ''}`} aria-hidden="true">{config[name] ? '✓' : '−'}</span></Focusable></div>;
+  const button = (name: string, label: string, choose: () => void, danger = false) => <Focusable focusKey={key(name)} group="settings-controls" index={20 + controls.indexOf(name)} className={danger ? 'danger-button' : 'secondary-button'} onSelect={() => { focus.focus(key(name)); choose(); }}>{busy === name ? t('settings.ui.working') : label}</Focusable>;
+  return <main className="screen settings-screen">
+    <header className="settings-header"><div><span className="eyebrow">{t(firstRun ? 'settings.firstRun.eyebrow' : 'settings.eyebrow')}</span><h1>{t(firstRun ? 'settings.firstRun.title' : 'settings.title')}</h1></div><p>{t('settings.ui.help')}</p></header>
+    <nav className="settings-tabs" aria-label={t('settings.title')}>{sections.map((value, index) => <Focusable key={value} focusKey={key(`tab:${value}`)} group="settings-tabs" index={index} orientation="horizontal" className={value === section ? 'settings-tab selected' : 'settings-tab'} onSelect={() => switchSection(value)}>{t(`settings.ui.${value}`)}</Focusable>)}</nav>
+    <form className="settings-form" onSubmit={event => event.preventDefault()}>
+      <div className="settings-pane" ref={pane} key={section} aria-label={t(`settings.ui.${section}`)}>
+        <h2>{t(`settings.ui.${section}`)}</h2><p className="settings-section-help">{t(`settings.ui.${section === 'general' ? 'generalHelp' : section === 'provider' ? 'providerHelp' : section === 'playback' ? 'playbackHelp' : 'dataHelp'}`)}</p>
+        {section === 'general' && <>{select('language', t('settings.language'), LANGUAGES.map(option => ({ ...option })))}<p className="app-version">{serverVersion === APP_VERSION ? t('settings.version', { version: APP_VERSION }) : t('settings.versionMismatch', { app: APP_VERSION, server: serverVersion })}</p></>}
+        {section === 'provider' && <>{input('xtreamBaseUrl', t('settings.server'))}{input('xtreamUsername', t('settings.username'))}{input('xtreamPassword', t('settings.password'), config.passwordConfigured ? t('settings.ui.passwordHelp') : undefined)}{toggle('demoMode', t('settings.demoMode'), t('settings.ui.demoHelp'))}<div className="settings-inline-action">{button('test', t('settings.test'), test)}</div></>}
+        {section === 'playback' && <>{select('preferredLiveFormat', t('settings.liveFormat'), [{ value: 'auto', label: t('settings.liveFormat.auto') }, { value: 'hls', label: 'HLS' }, { value: 'ts', label: 'MPEG-TS' }])}{toggle('autoplayLive', t('settings.autoplayLive'))}{toggle('rememberLastChannel', t('settings.rememberChannel'))}</>}
+        {section === 'data' && <>{input('xmltvUrl', t('settings.xmltv') + ' · ' + t('settings.optional'))}{select('epgRefreshHours', t('settings.epgRefresh'), [3, 6, 12].map(hours => ({ value: String(hours), label: t('settings.epgRefresh.hours', { count: hours }) })), t('settings.ui.epgHelp'))}{!firstRun && <div className="settings-maintenance"><p>{t('settings.ui.refreshHelp')}</p>{button('refresh', t('settings.refresh'), () => maintenance('refresh'))}<p>{t('settings.ui.clearHelp')}</p>{button('clear-content', t('settings.ui.clearContent'), () => maintenance('content'), true)}{button('clear-all', t('settings.ui.clearAll'), () => maintenance('all'), true)}</div>}</>}
       </div>
-      <RemoteInput focusKey="settings:server" index={1} label={t('settings.server')} value={config.xtreamBaseUrl} input={(value) => field('xtreamBaseUrl', value)} placeholder="http://provider.example:8080" />
-      <RemoteInput focusKey="settings:username" index={2} label={t('settings.username')} value={config.xtreamUsername} input={(value) => field('xtreamUsername', value)} autocomplete="username" />
-      <RemoteInput focusKey="settings:password" index={3} label={t('settings.password')} type="password" value={config.xtreamPassword} input={(value) => field('xtreamPassword', value)} placeholder={config.passwordConfigured ? t('settings.passwordSaved') : ''} autocomplete="current-password" />
-      <RemoteInput focusKey="settings:xmltv" index={4} label={<span>{t('settings.xmltv')} <small>{t('settings.optional')}</small></span>} value={config.xmltvUrl} input={(value) => field('xmltvUrl', value)} placeholder="http://provider.example/xmltv.php?..." />
-      <div className="settings-row">
-        <RemoteSelect focusKey="settings:format" index={5} label={t('settings.liveFormat')} value={config.preferredLiveFormat} change={(value) => field('preferredLiveFormat', value)} options={[{ value: 'auto', label: t('settings.liveFormat.auto') }, { value: 'hls', label: 'HLS' }, { value: 'ts', label: 'MPEG-TS' }]} />
-        <RemoteSelect focusKey="settings:epg" index={6} label={t('settings.epgRefresh')} value={config.epgRefreshHours} change={(value) => field('epgRefreshHours', Number(value))} options={[3, 6, 12].map((hours) => ({ value: hours, label: t('settings.epgRefresh.hours', { count: hours }) }))} />
-      </div>
-      <div className="toggle-row">
-        <Focusable focusKey="settings:demo" group="settings-controls" index={7} orientation="vertical" onSelect={() => field('demoMode', !config.demoMode)} className="toggle-control"><span className={`toggle-box ${config.demoMode ? 'checked' : ''}`} />{t('settings.demoMode')}</Focusable>
-        <Focusable focusKey="settings:autoplay" group="settings-controls" index={8} orientation="vertical" onSelect={() => field('autoplayLive', !config.autoplayLive)} className="toggle-control"><span className={`toggle-box ${config.autoplayLive ? 'checked' : ''}`} />{t('settings.autoplayLive')}</Focusable>
-        <Focusable focusKey="settings:remember" group="settings-controls" index={9} orientation="vertical" onSelect={() => field('rememberLastChannel', !config.rememberLastChannel)} className="toggle-control"><span className={`toggle-box ${config.rememberLastChannel ? 'checked' : ''}`} />{t('settings.rememberChannel')}</Focusable>
-      </div>
-      {error && <p className="form-message error">{error}</p>}{message && <p className="form-message success">{message}</p>}
-      <div className="form-actions">
-        <Focusable focusKey="settings:test" group="settings-controls" index={10} orientation="vertical" disabled={busy} onSelect={() => run(() => api.testConfig(config), t('settings.testOk'))} className="secondary-button">{t('settings.test')}</Focusable>
-        <Focusable focusKey="settings:save" group="settings-controls" index={11} orientation="vertical" disabled={busy} onSelect={() => run(() => api.saveConfig({ ...config, language }), t('settings.saved'), saved)} className="primary-button">{t('settings.save')}</Focusable>
-        {!firstRun && <Focusable focusKey="settings:refresh" group="settings-controls" index={12} orientation="vertical" disabled={busy} onSelect={() => run(api.refresh, t('settings.refreshed'))} className="secondary-button">{t('settings.refresh')}</Focusable>}
-        {!firstRun && <Focusable focusKey="settings:clear-content" group="settings-controls" index={13} orientation="vertical" disabled={busy} onSelect={() => clearData('content')} className="secondary-button">{confirmClear === 'content' ? t('settings.clearContentConfirm') : t('settings.clearContent')}</Focusable>}
-        {!firstRun && <Focusable focusKey="settings:clear-all" group="settings-controls" index={14} orientation="vertical" disabled={busy} onSelect={() => clearData('all')} className="danger-button">{confirmClear === 'all' ? t('settings.clearConfirm') : t('settings.clear')}</Focusable>}
-      </div>
+      <footer className="settings-save-bar"><div aria-live="polite" role="status"><strong className={dirty ? 'settings-dirty' : ''}>{busy ? t(busy === 'save' ? 'settings.ui.saving' : 'settings.ui.working') : t(dirty ? 'settings.ui.dirty' : 'settings.ui.clean')}</strong><p className={error ? 'error' : ''}>{error || message}</p></div>
+        <Focusable focusKey={key('save')} group="settings-controls" index={40} className="primary-button" onSelect={save}>{t('settings.save')}</Focusable>
+        <Focusable focusKey={key('exit')} group="settings-controls" index={41} className="secondary-button" onSelect={requestLeave}>{t('settings.ui.exit')}</Focusable>
+      </footer>
     </form>
-    <footer className="app-version">{serverVersion === APP_VERSION ? t('settings.version', { version: APP_VERSION }) : t('settings.versionMismatch', { app: APP_VERSION, server: serverVersion })}</footer>
+    {dialog && <SettingsDialog dialog={dialog} close={() => setDialog(undefined)} />}
   </main>;
 }
