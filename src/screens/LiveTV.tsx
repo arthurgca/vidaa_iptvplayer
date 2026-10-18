@@ -11,7 +11,7 @@ import type { CatalogQuery } from '../catalogQuery';
 import { useTranslate } from '../i18n/I18nContext';
 import { Focusable, useFocusManager } from '../navigation/FocusContext';
 import type { ScrollPosition } from '../navigation/scroll';
-import { isTextDeletion, remoteAction, type RemoteAction } from '../platform/remote';
+import { remoteAction, type RemoteAction } from '../platform/remote';
 import type { Channel, EpgNow, Favorite, Program } from '../types';
 
 interface LiveTVProps {
@@ -235,9 +235,11 @@ export function LiveTV({ query, setQuery, restoreFocus, scroll, lastTuned, play,
   useEffect(() => {
     const listener = (event: KeyboardEvent) => {
       const action = remoteAction(event); if (!action) return;
-      if (event.target instanceof HTMLInputElement) {
-        if (action === 'BACK' && isTextDeletion(event)) { event.stopImmediatePropagation(); return; }
-        if (action === 'SELECT' || action === 'BACK') { event.preventDefault(); event.stopImmediatePropagation(); event.target.blur(); if (action === 'SELECT') enterResults.current(); else focus.focus(SEARCH); }
+      // The TV may hide its keyboard without blurring the search input.
+      const input = document.activeElement instanceof HTMLInputElement ? document.activeElement
+        : event.target instanceof HTMLInputElement ? event.target : undefined;
+      if (input) {
+        if (action === 'SELECT' || action === 'BACK') { event.preventDefault(); event.stopImmediatePropagation(); input.blur(); if (action === 'SELECT') enterResults.current(); else focus.focus(SEARCH); }
         return;
       }
       if (handler.current(action)) { event.preventDefault(); event.stopImmediatePropagation(); }

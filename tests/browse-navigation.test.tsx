@@ -14,7 +14,7 @@ async function press(key: string) {
   act(() => { document.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })); });
   await settle();
 }
-const items = Array.from({ length: 300 }, (_, i) => ({ id: String(i), name: `Title ${i}`, categoryId: 'cat' }));
+const items = Array.from({ length: 300 }, (_, i) => ({ id: String(i), name: i === 0 ? 'Senhor dos Aneis' : `Title ${i}`, categoryId: 'cat' }));
 async function open(kind: 'live' | 'movies' | 'series') {
   act(() => render(<Harness />, container)); await settle();
   act(() => { container.querySelector<HTMLButtonElement>(`[data-focus-key="home:${kind}"]`)!.click(); });
@@ -31,7 +31,8 @@ beforeEach(() => {
   for (const method of ['liveCategories', 'vodCategories', 'seriesCategories'] as const) vi.spyOn(api, method).mockResolvedValue([{ id: 'cat', name: 'Category' }]);
   const windowPage = async (...args: Parameters<typeof api.movieWindow>) => {
     const offset = args[1] || 0;
-    return { items: items.slice(offset, offset + 120), offset, total: items.length, limit: 120 };
+    const filtered = items.filter(item => item.name.toLowerCase().includes((args[2] || '').toLowerCase()));
+    return { items: filtered.slice(offset, offset + 120), offset, total: filtered.length, limit: 120 };
   };
   vi.spyOn(api, 'movieWindow').mockImplementation(windowPage);
   vi.spyOn(api, 'seriesWindow').mockImplementation(windowPage);
@@ -78,6 +79,7 @@ describe.each(['live', 'movies', 'series'] as const)('%s browse shortcuts', kind
 
   it.each([
     ['Backspace', 8, ''],
+    ['Backspace', 8, 'Title'],
     ['Unidentified', 8, 'Title'],
     ['Backspace', 461, 'Title'],
     ['Backspace', 10009, 'Title'],
@@ -97,5 +99,27 @@ describe.each(['live', 'movies', 'series'] as const)('%s browse shortcuts', kind
     expect(container.querySelector('.home-screen')).toBeNull();
     await press('Escape'); await settle(80);
     expect(container.querySelector('.home-screen')).not.toBeNull();
+  });
+
+  it.each(['input', 'document'] as const)('exits the nonempty search with controller Back delivered to %s and reaches the result without Enter', async target => {
+    await open(kind);
+    act(() => { focus.focus(`${kind}:search`); focus.select(); });
+    const input = container.querySelector('input')!;
+    act(() => { input.value = 'senhor'; input.dispatchEvent(new Event('input', { bubbles: true })); });
+    await settle(280); await settle(); await settle();
+    // The TV keyboard can consume the first Back while leaving the input focused.
+    expect(document.activeElement).toBe(input);
+    expect(container.querySelector(kind === 'live' ? '.channel-row' : '.movie-card')?.textContent).toContain('Senhor dos Aneis');
+    const back = new KeyboardEvent('keydown', { key: 'Backspace', keyCode: 8, bubbles: true, cancelable: true });
+    act(() => { (target === 'input' ? input : document).dispatchEvent(back); });
+    await settle();
+    expect(back.defaultPrevented).toBe(true);
+    expect(input.value).toBe('senhor');
+    expect(document.activeElement).toBe(input.parentElement);
+    expect(container.querySelector('.home-screen')).toBeNull();
+    await press('ArrowDown');
+    expect(focus.focused).toBe(`${kind}:${kind === 'live' ? 'channel' : 'item'}:0`);
+    expect(document.activeElement?.textContent).toContain('Senhor dos Aneis');
+    expect(container.querySelector('.player-screen')).toBeNull();
   });
 });

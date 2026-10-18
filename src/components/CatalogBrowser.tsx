@@ -10,7 +10,7 @@ import type { CatalogQuery } from '../catalogQuery';
 import { useTranslate } from '../i18n/I18nContext';
 import { Focusable, useFocusManager } from '../navigation/FocusContext';
 import type { ScrollPosition } from '../navigation/scroll';
-import { isTextDeletion, remoteAction, type RemoteAction } from '../platform/remote';
+import { remoteAction, type RemoteAction } from '../platform/remote';
 import type { MovieSort, Page, VodItem } from '../types';
 
 const COLUMNS = 6;
@@ -226,11 +226,13 @@ export function CatalogBrowser({ kind, query, setQuery, restoreFocus, scroll, op
   useEffect(() => {
     const listener = (event: KeyboardEvent) => {
       const action = remoteAction(event); if (!action) return;
-      if (event.target instanceof HTMLInputElement) {
-        // The app maps Backspace to Back outside editing. Keep deletion native inside Movies search.
-        if (action === 'BACK' && isTextDeletion(event)) { event.stopImmediatePropagation(); return; }
+      // A TV can dispatch Back at the document after hiding its keyboard while
+      // the input still owns native focus. Backspace is also the remote's Back.
+      const input = document.activeElement instanceof HTMLInputElement ? document.activeElement
+        : event.target instanceof HTMLInputElement ? event.target : undefined;
+      if (input) {
         if (action === 'SELECT' || action === 'BACK') {
-          event.preventDefault(); event.stopImmediatePropagation(); event.target.blur(); focus.focus(SEARCH); setSearch(queryRef.current.search);
+          event.preventDefault(); event.stopImmediatePropagation(); input.blur(); focus.focus(SEARCH); setSearch(queryRef.current.search);
         }
         return;
       }

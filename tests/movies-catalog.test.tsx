@@ -65,8 +65,6 @@ describe('Movies virtual grid and remote', () => {
     const input = container.querySelector('input')!; const requests = vi.mocked(api.movieWindow).mock.calls.length;
     act(() => { input.value = 'Movie 43532'; input.dispatchEvent(new Event('input', { bubbles: true })); }); await settle();
     expect(api.movieWindow).toHaveBeenCalledTimes(requests);
-    const deletion = new KeyboardEvent('keydown', { key: 'Backspace', bubbles: true, cancelable: true });
-    act(() => { input.dispatchEvent(deletion); }); expect(deletion.defaultPrevented).toBe(false); expect(document.activeElement).toBe(input);
     await act(() => new Promise<void>(resolve => setTimeout(resolve, 280))); await settle();
     expect(api.movieWindow).toHaveBeenLastCalledWith('even', 0, 'Movie 43532', '', 'added-desc');
     expect(document.activeElement).toBe(input); expect(container.querySelectorAll('.movie-card')).toHaveLength(1);

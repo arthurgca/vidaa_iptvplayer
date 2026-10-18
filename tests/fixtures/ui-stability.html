@@ -64,8 +64,15 @@ async function run() {
     const row = kind === 'live' ? parseFloat(getComputedStyle(document.documentElement).fontSize) * 4 : parseFloat(viewport.style.getPropertyValue('--movie-row'));
     const budget = (Math.ceil(viewport.clientHeight / row) + (kind === 'live' ? 5 : 3)) * (kind === 'live' ? 1 : 6);
     check(counts.maxCards <= budget, `${kind}: virtualization exceeded budget (${counts.maxCards}/${budget})`);
-    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
-    check(document.activeElement !== input, `${kind}: explicit dismissal failed`);
+    await type('123');
+    const back = new KeyboardEvent('keydown', { key: 'Backspace', keyCode: 8, bubbles: true, cancelable: true });
+    input.dispatchEvent(back);
+    check(back.defaultPrevented && input.value === '123', `${kind}: controller Back would delete search text`);
+    check(document.activeElement === input.parentElement, `${kind}: controller Back did not exit editing`);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }));
+    await wait(50);
+    check(focus.focused.startsWith(`${kind}:${kind === 'live' ? 'channel' : 'item'}:`), `${kind}: result unreachable after Back`);
+    check(input.value === '123', `${kind}: search changed after Back`);
     focus.focus(`${kind}:search`); focus.select();
     check(document.activeElement === input, `${kind}: cannot reopen search`);
     reports.push({ kind, ...counts });
