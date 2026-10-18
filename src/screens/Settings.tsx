@@ -3,7 +3,7 @@ import { api } from '../api/client';
 import { ErrorState, Spinner } from '../components/common';
 import { useTranslate } from '../i18n/I18nContext';
 import { LANGUAGES, type Language, type TranslationKey } from '../i18n';
-import { Focusable, useFocusManager, useFocusProxy } from '../navigation/FocusContext';
+import { Focusable, useSectionNavigation, useFocusManager, useFocusProxy } from '../navigation/FocusContext';
 import type { RemoteAction } from '../platform/remote';
 import type { AppConfig } from '../types';
 import { APP_VERSION } from '../version';
@@ -38,7 +38,7 @@ function RemoteInput({ name, label, value, password, help, locked, busy, error, 
         placeholder={locked ? t('settings.ui.managedSecret') : password && help ? t('settings.passwordSaved') : ''}
         onInput={event => change(event.currentTarget.value)}
         onKeyDown={event => {
-          if (event.key === 'Backspace' || event.keyCode === 8) event.stopPropagation();
+          if ((event.key === 'Backspace' || event.keyCode === 8) && event.keyCode !== 461 && event.keyCode !== 10009) event.stopPropagation();
           if (event.key === 'Enter' || event.keyCode === 13) { event.preventDefault(); event.stopPropagation(); input.current?.blur(); event.currentTarget.closest<HTMLElement>('[data-focus-proxy]')?.focus(); }
         }} />
       {error && <small id={`${key(name)}:error`} className="settings-field-error">{error}</small>}
@@ -118,6 +118,7 @@ export function Settings({ firstRun = false, language, setLanguage, saved, clear
   };
   const controls = controlKeys[section].filter(value => !firstRun || !['refresh', 'clear-content', 'clear-all'].includes(value));
   const sequence = [...controls, 'save', 'exit'].map(key);
+  const sectionNavigation = useSectionNavigation([key(`tab:${section}`), ...sections.filter(value => value !== section).map(value => key(`tab:${value}`))], section);
   action.current = remote => {
     if (dialog) {
       if (remote === 'BACK') setDialog(undefined);
@@ -126,6 +127,7 @@ export function Settings({ firstRun = false, language, setLanguage, saved, clear
       else if (['NAV_DOWN', 'NAV_RIGHT', 'CHANNEL_DOWN'].includes(remote)) focus.jump('settings-dialog', 1);
       return true;
     }
+    if (sectionNavigation(remote)) return true;
     if (remote === 'BACK') { requestLeave(); return true; }
     if (remote === 'SELECT') { focus.select(); return true; }
     const tab = sections.findIndex(value => focus.focused === key(`tab:${value}`));

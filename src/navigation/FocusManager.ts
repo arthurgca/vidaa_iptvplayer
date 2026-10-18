@@ -33,12 +33,18 @@ export class FocusManager {
   }
   subscribe(listener: (key: string) => void) { this.listeners.add(listener); return () => this.listeners.delete(listener); }
   get focused() { return this.current; }
+  get focusedGroup() { return this.nodes.get(this.current)?.group; }
+  get rootScope() { return this.scope === 'root'; }
+  focusGroupFirst(group: string) {
+    const first = [...this.nodes.values()].filter(node => node.group === group && this.inScope(node)).sort((a, b) => a.index - b.index)[0];
+    return first ? this.focus(first.key) : false;
+  }
   get previous() { return this.previousKey; }
   setScope(scope: string, initial?: string) { this.scope = scope; if (initial) this.focus(initial); }
-  focus(key: string) {
+  focus(key: string, reveal = true) {
     const node = this.nodes.get(key); if (!node || !this.inScope(node)) return false;
     if (this.current && this.current !== key) this.previousKey = this.current;
-    this.current = key; this.focusWithoutScrolling(node.element); this.scrollNearestContainer(node.element);
+    this.current = key; this.focusWithoutScrolling(node.element); if (reveal) this.scrollNearestContainer(node.element);
     this.listeners.forEach((listener) => listener(key)); return true;
   }
   select() { this.nodes.get(this.current)?.onSelect(); }

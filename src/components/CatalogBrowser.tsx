@@ -3,12 +3,11 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { api } from '../api/client';
 import { Image } from '../components/common';
 import { SearchField } from '../components/SearchField';
-import { useBrowseMenu } from './BrowseMenu';
 import { ChevronDownIcon } from './icons';
 import { useAsync } from '../hooks/useAsync';
 import type { CatalogQuery } from '../catalogQuery';
 import { useTranslate } from '../i18n/I18nContext';
-import { Focusable, useFocusManager } from '../navigation/FocusContext';
+import { Focusable, useSectionNavigation, useFocusManager } from '../navigation/FocusContext';
 import type { ScrollPosition } from '../navigation/scroll';
 import { remoteAction, type RemoteAction } from '../platform/remote';
 import type { MovieSort, Page, VodItem } from '../types';
@@ -19,7 +18,7 @@ const SORTS: MovieSort[] = ['title-asc', 'title-desc', 'added-desc', 'added-asc'
 const editingSearch = () => document.activeElement instanceof HTMLInputElement;
 
 type View = { key: string; pages: Page<VodItem>[]; total: number; index: number; top: number; start: number; end: number; focus: boolean };
-export type CatalogBrowserProps = { kind: 'movies' | 'series'; query: CatalogQuery; setQuery: (query: CatalogQuery) => void; restoreFocus?: string; scroll?: ScrollPosition[]; open: (item: VodItem) => void; home?: () => void };
+export type CatalogBrowserProps = { kind: 'movies' | 'series'; query: CatalogQuery; setQuery: (query: CatalogQuery) => void; restoreFocus?: string; scroll?: ScrollPosition[]; open: (item: VodItem) => void };
 
 function visibleWindow(index: number, total: number, row: number, height: number, currentTop: number) {
   const rowTop = Math.floor(index / COLUMNS) * row;
@@ -50,7 +49,7 @@ function MovieTile({ kind, item, index, rowHeight, choose, highlight }: { kind: 
 }
 
 /** Logical focus survives DOM virtualization and asynchronous local catalog windows. */
-export function CatalogBrowser({ kind, query, setQuery, restoreFocus, scroll, open, home }: CatalogBrowserProps) {
+export function CatalogBrowser({ kind, query, setQuery, restoreFocus, scroll, open }: CatalogBrowserProps) {
   const CATEGORIES = `${kind}:categories`, SEARCH = `${kind}:search`, SORT = `${kind}:sort`, RETRY = `${kind}:retry`;
   const keyFor = (id: string) => `${kind}:item:${encodeURIComponent(id)}`;
   const t = useTranslate(); const focus = useFocusManager(); const viewport = useRef<HTMLDivElement>(null);
@@ -137,8 +136,8 @@ export function CatalogBrowser({ kind, query, setQuery, restoreFocus, scroll, op
       // Preact runs the parent's layout effect before registering child tiles.
       // A microtask lets all registrations finish without delaying remote navigation a frame.
       if (view.focus && pendingFocus.current && !editingSearch() && focus.focused !== SEARCH && !panel) {
-        const request = sequence.current;
-        void Promise.resolve().then(() => { if (alive.current && request === sequence.current && !editingSearch() && focus.focused !== SEARCH) focus.focus(keyFor(item!.id)); });
+        const request = sequence.current; const origin = focus.focused;
+        void Promise.resolve().then(() => { if (alive.current && request === sequence.current && !editingSearch() && focus.focused === origin) focus.focus(keyFor(item!.id)); });
       }
     }
     pendingFocus.current = false;
@@ -180,15 +179,9 @@ export function CatalogBrowser({ kind, query, setQuery, restoreFocus, scroll, op
       setView({ ...view, ...range, index, focus: true }); setBusy(false); setError('');
     } else void loadRef.current(index, true);
   };
-  const browse = useBrowseMenu(kind, [
-    ...(home ? [{ id: 'home', label: t('browse.home'), select: home }] : []),
-    { id: 'categories', label: t('common.categories'), select: showPanel },
-    { id: 'search', label: t('browse.search'), select: () => { focus.focus(SEARCH); focus.select(); } },
-    { id: 'sort', label: t('movies.sort'), select: () => { setPanelIndex(SORTS.indexOf(sort)); setPanel('sort'); } }
-  ]);
+  const sectionNavigation = useSectionNavigation([CATEGORIES, SORT, SEARCH], filterKey);
   const handle = (action: RemoteAction) => {
     const current = focus.focused;
-    if (!panel && browse.handle(action)) { pendingFocus.current = false; return true; }
     if (panel) {
       if (action === 'BACK') { closePanel(); return true; }
       if (action === 'SELECT') { focus.select(); return true; }
@@ -200,6 +193,7 @@ export function CatalogBrowser({ kind, query, setQuery, restoreFocus, scroll, op
       }
       return true;
     }
+    if (sectionNavigation(action)) { pendingFocus.current = false; return true; }
     if (action === 'BACK') return false;
     if (action === 'SELECT') { focus.select(); return true; }
     if (action === 'CHANNEL_UP' || action === 'CHANNEL_DOWN') {
@@ -216,7 +210,7 @@ export function CatalogBrowser({ kind, query, setQuery, restoreFocus, scroll, op
     }
     const index = destination.current; const column = index % COLUMNS;
     if (action === 'NAV_UP' && index < COLUMNS) focus.focus(column < 2 ? CATEGORIES : column < 4 ? SORT : SEARCH);
-    else if (action === 'NAV_LEFT') { if (column > 0) navigate(index - 1); else browse.show(); }
+    else if (action === 'NAV_LEFT') { if (column > 0) navigate(index - 1); }
     else if (action === 'NAV_RIGHT' && column < COLUMNS - 1 && index + 1 < (view?.total || 0)) navigate(index + 1);
     else if (action === 'NAV_UP') navigate(index - COLUMNS);
     else if (action === 'NAV_DOWN' && index + COLUMNS < Math.ceil((view?.total || 0) / COLUMNS) * COLUMNS) navigate(index + COLUMNS);
@@ -248,7 +242,7 @@ export function CatalogBrowser({ kind, query, setQuery, restoreFocus, scroll, op
   currentView?.pages.forEach(page => page.items.forEach((item, i) => { const index = page.offset + i; if (index >= currentView.start && index < currentView.end) visible.push({ item, index }); }));
   const categoryName = categories.data?.find(item => item.id === query.category)?.name || (query.category || t(`catalog.${kind}.all`));
   return <main className="screen movies-browser">
-    <div className="movies-background" aria-hidden={panel || browse.active ? 'true' : undefined}>
+    <div className="movies-background" aria-hidden={panel ? 'true' : undefined}>
       <header className="section-header"><div><span className="eyebrow">{t('catalog.eyebrow')}</span><h1>{t(`catalog.${kind}.title`)}</h1></div>
         <Focusable hoverFocus={false} focusKey={CATEGORIES} group="movies-header" index={0} onSelect={showPanel} className="movies-category-control"><small>{t('common.categories')}</small><strong>{categoryName}</strong><span aria-hidden="true"><ChevronDownIcon /></span></Focusable>
         <Focusable hoverFocus={false} focusKey={SORT} group="movies-header" index={1} onSelect={() => { setPanelIndex(SORTS.indexOf(sort)); setPanel('sort'); }} className="movies-category-control movies-sort-control"><small>{t('movies.sort')}</small><strong>{t(`movies.sort.${sort}`)}</strong><span aria-hidden="true"><ChevronDownIcon /></span></Focusable>
@@ -265,7 +259,6 @@ export function CatalogBrowser({ kind, query, setQuery, restoreFocus, scroll, op
       </div>
       {error && <div className="movies-error" role="alert"><span>{error}</span><Focusable hoverFocus={false} focusKey={RETRY} group="movies-status" index={0} onSelect={() => void loadRef.current(destination.current, true)} className="secondary-button">{t('common.retry')}</Focusable></div>}
     </div>
-    {browse.menu}
     {panel && <div className="movies-modal"><section className="movies-category-dialog" role="dialog" aria-modal="true" aria-label={t(panel === 'sort' ? 'movies.sort' : 'common.categories')}>
       <header><div><span className="eyebrow">{t(`catalog.${kind}.title`)}</span><h2>{t(panel === 'sort' ? 'movies.sort' : 'common.categories')}</h2></div><Focusable hoverFocus={false} focusKey={`${kind}:selector:close`} group="movies-selector" index={-1} onFocus={() => setPanelIndex(-1)} onSelect={closePanel}>{t('common.back')}</Focusable></header>
       <div className="movies-category-options">

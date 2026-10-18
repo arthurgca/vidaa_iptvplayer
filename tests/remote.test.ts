@@ -26,3 +26,16 @@ describe('remote page/channel buttons', () => {
     } finally { stop(); input.remove(); }
   });
 });
+
+it('suppresses held remote Back while preserving repeated text deletion', () => {
+  const handler = vi.fn(); const stop = listenToRemote(handler);
+  const input = document.createElement('input'); input.value = 'draft'; document.body.append(input);
+  try {
+    const repeated = new KeyboardEvent('keydown', { key: 'Backspace', keyCode: 461, repeat: true, bubbles: true, cancelable: true });
+    document.dispatchEvent(repeated);
+    expect(repeated.defaultPrevented).toBe(true); expect(handler).not.toHaveBeenCalled();
+    const deletion = new KeyboardEvent('keydown', { key: 'Backspace', keyCode: 8, repeat: true, bubbles: true, cancelable: true });
+    input.dispatchEvent(deletion);
+    expect(deletion.defaultPrevented).toBe(false); expect(handler).not.toHaveBeenCalled();
+  } finally { stop(); input.remove(); }
+});

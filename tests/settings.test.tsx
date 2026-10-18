@@ -60,6 +60,7 @@ it('keeps failed saves dirty and allows remote discard', async () => {
   vi.spyOn(api, 'saveConfig').mockRejectedValue(new Error('sensitive provider details'));
   await mount(); await select('tab:playback'); await select('autoplayLive'); await select('save');
   expect(root.textContent).toContain('Could not save'); expect(root.textContent).toContain('Unsaved changes'); expect(root.textContent).not.toContain('sensitive');
+  await press('Escape'); expect(focus.focused).toBe('settings:tab:playback');
   await press('Escape'); await press('ArrowDown'); await press('Enter'); expect(leave).toHaveBeenCalledTimes(1);
 });
 
@@ -127,4 +128,21 @@ it('requires explicit destructive confirmation, restores focus, and prevents dup
   await press('ArrowDown'); await press('Enter'); expect(all).toHaveBeenCalledTimes(1);
   await select('refresh'); await select('refresh'); expect(refresh).toHaveBeenCalledTimes(1);
   act(() => done({ ok: true })); await settle(); expect(root.textContent).toContain('Catalogs reload when opened'); expect(focus.focused).toBe('settings:refresh');
+});
+
+it('Back moves a deep dirty form to its existing tab and Down restores the same control and scroll', async () => {
+  await mount(); await select('tab:provider'); await type('xtreamUsername', 'unsaved');
+  await select('test');
+  const pane = root.querySelector<HTMLElement>('.settings-pane')!;
+  const screen = root.querySelector('main');
+  pane.scrollTop = 240;
+  const origin = focus.focused;
+  await press('Escape');
+  expect(focus.focused).toBe('settings:tab:provider');
+  expect(root.querySelector('[role=dialog]')).toBeNull();
+  expect(root.querySelector('main')).toBe(screen);
+  expect(root.querySelector<HTMLInputElement>('[id="settings:xtreamUsername"]')!.value).toBe('unsaved');
+  expect(pane.scrollTop).toBe(240);
+  await press('ArrowDown'); expect(focus.focused).toBe(origin);
+  expect(leave).not.toHaveBeenCalled();
 });

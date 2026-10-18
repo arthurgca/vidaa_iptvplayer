@@ -2,6 +2,8 @@ import { createContext } from 'preact';
 import { useContext, useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { FocusManager, type Direction, type FocusNode, type NeighborTarget } from './FocusManager';
 
+import type { RemoteAction } from '../platform/remote';
+
 const manager = new FocusManager();
 const FocusContext = createContext(manager);
 
@@ -70,4 +72,33 @@ export function Focusable({ focusKey, group, index, columns, orientation, neighb
     return () => focus.unregister(focusKey, element);
   }, [focus, focusKey, disabled]);
   return <button ref={ref} type="button" tabIndex={-1} data-focus-key={focusKey} aria-pressed={pressed} className={`focusable ${className}`} onClick={onSelect} onFocus={onFocus} onMouseEnter={hoverFocus ? () => focus.focus(focusKey) : undefined} disabled={disabled} title={title}>{children}</button>;
+}
+
+/** Call after temporary interactions handle their keys, before ordinary route Back.
+ * Only moves focus: the screen, its data and its scroll containers stay mounted.
+ */
+export function useSectionNavigation(controls: string[], context: string) {
+  const focus = useFocusManager();
+  const origins = useRef(new Map<string, { key: string; group?: string }>());
+  return (action: RemoteAction) => {
+    if (!focus.rootScope || !controls.length) return false;
+    const onControls = controls.includes(focus.focused);
+    if (action === 'BACK' && !onControls) {
+      const origin = { key: focus.focused, group: focus.focusedGroup };
+      if (!origin.group) return false;
+      // Do not scroll the shared screen container just to focus its header.
+      if (!controls.some(key => focus.focus(key, false))) return false;
+      origins.current.set(context, origin);
+      return true;
+    }
+    if (action === 'NAV_DOWN' && onControls) {
+      const origin = origins.current.get(context);
+      if (!origin) return false;
+      origins.current.delete(context);
+      // Stable IDs survive updates. A removed item falls back to the first valid
+      // item in its original group, then the screen's normal Down handling.
+      return focus.focus(origin.key) || Boolean(origin.group && focus.focusGroupFirst(origin.group));
+    }
+    return false;
+  };
 }

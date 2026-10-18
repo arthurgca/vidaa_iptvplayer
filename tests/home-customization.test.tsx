@@ -113,6 +113,7 @@ it('applies saved settings through the real router without reloading Home or los
   await select('tab:home'); await select('home:movies:2'); await select('home:series'); await select('home:series:1');
   const saveButton = root.querySelector('[data-focus-key="settings:save"]');
   await select('save'); expect(root.querySelector('[data-focus-key="settings:save"]')).toBe(saveButton);
+  await press('Escape'); expect(focus.focused).toBe('settings:tab:home');
   await press('Escape'); await ready();
   expect(root.querySelector('.home-screen')).not.toBeNull(); expect(root.textContent).toContain('Category movies 2'); expect(root.textContent).toContain('Category series 1');
   expect(focus.focused).toBe('home:settings'); expect(api.status).toHaveBeenCalledTimes(2); // startup + Settings version, no authentication restart

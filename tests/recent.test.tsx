@@ -43,6 +43,24 @@ beforeEach(() => {
 afterEach(() => { act(() => render(null, container)); container.remove(); vi.restoreAllMocks(); });
 
 describe('Recently Watched remote interactions', () => {
+  it('Back exits deep history without remounting and Down restores the stable item', async () => {
+    persisted = Array.from({ length: 100 }, (_, i) => ({ ...sample()[1]!, id: String(i), item: { ...sample()[1]!.item, id: String(i) } }));
+    await mountRecent();
+    act(() => { focus.focus('recent:movie:75'); });
+    const list = container.querySelector<HTMLElement>('.recent-list')!;
+    list.scrollTop = 300;
+    const requests = vi.mocked(api.history).mock.calls.length;
+    await press('Escape');
+    expect(focus.focused).toBe('recent:clear');
+    expect(container.querySelector('.recent-list')).toBe(list);
+    expect(list.scrollTop).toBe(300);
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
+    await press('ArrowDown'); expect(focus.focused).toBe('recent:movie:75');
+    expect(list.scrollTop).toBe(300);
+    expect(api.history).toHaveBeenCalledTimes(requests);
+    expect(Player).not.toHaveBeenCalled();
+  });
+
   it('renders chronological mixed content and contextual progress without fetching labels', async () => {
     await mountRecent();
     expect([...container.querySelectorAll('.recent-info > strong')].map(node => node.textContent)).toEqual(['The Office — S09E01', 'Movie', 'The Office — S08E24', 'Channel']);

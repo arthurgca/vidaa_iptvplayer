@@ -43,38 +43,49 @@ beforeEach(() => {
 afterEach(() => { act(() => render(null, container)); container.remove(); vi.restoreAllMocks(); });
 
 describe.each(['live', 'movies', 'series'] as const)('%s browse shortcuts', kind => {
-  it('opens options deep in a list, traps focus and returns to the same item and scroll position', async () => {
+  it.each([8, 461, 10009, 27])('Back %s exits a deep list to existing controls and Down restores it', async keyCode => {
+    await open(kind);
+    for (let i = 0; i < 10; i++) await press('PageDown');
+    const origin = focus.focused;
+    const screen = container.querySelector('main');
+    const list = container.querySelector<HTMLElement>(kind === 'live' ? '.channel-list' : '.movies-grid')!;
+    const top = list.scrollTop;
+    const requests = kind === 'live' ? vi.mocked(api.liveCatalog).mock.calls.length : vi.mocked(kind === 'movies' ? api.movieWindow : api.seriesWindow).mock.calls.length;
+    const event = new KeyboardEvent('keydown', { key: 'Unidentified', keyCode, bubbles: true, cancelable: true });
+    act(() => { document.dispatchEvent(event); }); await settle();
+    expect(event.defaultPrevented).toBe(true);
+    expect(focus.focused).toBe(`${kind}:categories`);
+    expect(document.activeElement).toBe(container.querySelector(`[data-focus-key="${kind}:categories"]`));
+    expect(container.querySelector('main')).toBe(screen);
+    expect(list.scrollTop).toBe(top);
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
+    act(() => { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Unidentified', keyCode, repeat: true, bubbles: true, cancelable: true })); });
+    await settle(); expect(focus.focused).toBe(`${kind}:categories`);
+    await press('ArrowDown');
+    expect(focus.focused).toBe(origin); expect(list.scrollTop).toBe(top);
+    expect(kind === 'live' ? vi.mocked(api.liveCatalog).mock.calls.length : vi.mocked(kind === 'movies' ? api.movieWindow : api.seriesWindow).mock.calls.length).toBe(requests);
+    expect(container.querySelector('.player-screen')).toBeNull();
+    await press('Escape'); await press('Enter'); await settle(80);
+    expect(container.querySelector('[role="dialog"]')).not.toBeNull();
+    await press('Escape');
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
+    expect(focus.focused).toBe(`${kind}:categories`);
+    expect(container.querySelector('main')).toBe(screen);
+    await press('Escape'); await settle(80);
+    expect(container.querySelector('.home-screen')).not.toBeNull();
+  });
+
+  it('does not open the removed navigation popup from remote shortcuts', async () => {
     await open(kind);
     for (let i = 0; i < 10; i++) await press('PageDown');
     const origin = focus.focused;
     const list = container.querySelector<HTMLElement>(kind === 'live' ? '.channel-list' : '.movies-grid')!;
     const top = list.scrollTop;
-    expect(Number(origin.split(':').pop())).toBeGreaterThan(0);
-    await press('ContextMenu');
-    expect(focus.focused).toBe(`${kind}:menu:home`);
-    expect(focus.focus(origin)).toBe(false);
-    await press('PageDown'); await press('ArrowRight');
-    expect(focus.focused).toBe(`${kind}:menu:home`);
-    await press('Escape');
-    expect(focus.focused).toBe(origin); expect(list.scrollTop).toBe(top);
+    await press('ContextMenu'); await press('m');
+    expect(focus.focused).toBe(origin);
+    expect(list.scrollTop).toBe(top);
     expect(container.querySelector('[role="dialog"]')).toBeNull();
-    expect(container.querySelector('.player-screen')).toBeNull();
-  });
-
-  it('opens categories and search from options and returns directly Home', async () => {
-    await open(kind);
-    for (let i = 0; i < 10; i++) await press('PageDown');
-    await press('m'); await press('ArrowDown'); await press('Enter'); await settle(60);
-    expect(container.querySelector('[role="dialog"]')?.getAttribute('aria-label')).toBe('Categories');
-    await press('Escape');
-    await press('m'); await press('ArrowDown'); await press('ArrowDown'); await press('Enter');
-    expect(document.activeElement).toBe(container.querySelector('input'));
-    const input = container.querySelector('input')!;
-    act(() => { input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })); });
-    await settle();
-    await press('m'); await press('Enter'); await settle(80);
-    expect(container.querySelector('.home-screen')).not.toBeNull();
-    expect(focus.focused).toBe('home:live');
+    expect(container.querySelector('[data-focus-key*="menu:"]')).toBeNull();
   });
 
   it.each([

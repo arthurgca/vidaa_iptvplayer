@@ -16,8 +16,10 @@ const byKey: Record<string, RemoteAction> = {
 
 export function remoteAction(event: KeyboardEvent): RemoteAction | undefined {
   // TV runtimes can label a dedicated Back button as Backspace.
-  if (event.keyCode === 461 || event.keyCode === 10009) return 'BACK';
-  return byKey[event.key] || byCode[event.keyCode || event.which];
+  const action = event.keyCode === 461 || event.keyCode === 10009 ? 'BACK' : byKey[event.key] || byCode[event.keyCode || event.which];
+  // A held Back must not dismiss successive interaction layers.
+  if (action === 'BACK' && event.repeat && !isTextDeletion(event)) { event.preventDefault(); event.stopImmediatePropagation(); return; }
+  return action;
 }
 
 /** Preserve keyboard deletion; Backspace on an empty field finishes editing. */

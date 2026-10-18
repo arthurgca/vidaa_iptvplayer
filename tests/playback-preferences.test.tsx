@@ -56,6 +56,9 @@ describe('playback preference navigation', () => {
     expect(api.liveCatalog).toHaveBeenCalledTimes(1);
     expect(document.activeElement?.textContent).toContain('Channel 94');
     await back();
+    expect(document.activeElement?.getAttribute('data-focus-key')).toBe('live:categories');
+    expect(container.querySelector('.live-browser')).not.toBeNull();
+    await back();
     expect(container.querySelector('.home-screen')).not.toBeNull();
     expect(api.liveSelection).toHaveBeenCalledTimes(1);
   });

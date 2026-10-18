@@ -73,6 +73,25 @@ async function run() {
     await wait(50);
     check(focus.focused.startsWith(`${kind}:${kind === 'live' ? 'channel' : 'item'}:`), `${kind}: result unreachable after Back`);
     check(input.value === '123', `${kind}: search changed after Back`);
+    const press = async (key, keyCode = 0) => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key, keyCode, bubbles: true, cancelable: true }));
+      await wait(30);
+    };
+    for (let i = 0; i < 8; i++) await press('PageDown');
+    const origin = focus.focused, top = viewport.scrollTop;
+    const windows = counts.windows, catalogs = counts.catalogs;
+    for (const keyCode of [8, 461, 10009]) {
+      await press('Unidentified', keyCode);
+      check(focus.focused === `${kind}:categories`, `${kind}: Back did not reach section controls`);
+      check(!root.querySelector('[role=dialog]'), `${kind}: Back opened UI`);
+      check(viewport.scrollTop === top, `${kind}: Back scrolled content`);
+      const rect = document.activeElement.getBoundingClientRect();
+      check(rect.top >= 0 && rect.bottom <= innerHeight && rect.width > 0, `${kind}: controls not visible`);
+      check(root.querySelector('header') === header, `${kind}: Back remounted screen`);
+      await press('ArrowDown');
+      check(focus.focused === origin && viewport.scrollTop === top, `${kind}: Down lost browsing position`);
+    }
+    check(counts.windows === windows && counts.catalogs === catalogs, `${kind}: focus transition reloaded data`);
     focus.focus(`${kind}:search`); focus.select();
     check(document.activeElement === input, `${kind}: cannot reopen search`);
     reports.push({ kind, ...counts });
@@ -108,6 +127,9 @@ async function run() {
   const unexpectedBlur = blur;
   await press('Escape'); check(document.activeElement !== input, 'Settings: Back did not finish editing');
   await select('test'); check(tests === 1 && saves === 0, 'Settings: test persisted configuration');
+  await press('Escape'); check(focus.focused === 'settings:tab:provider', 'Settings: Back did not reach existing tab');
+  check(!root.querySelector('[role=dialog]') && input.value === 'edited', 'Settings: Back lost draft or opened a dialog');
+  await press('ArrowDown'); check(focus.focused === 'settings:test', 'Settings: Down lost previous control');
   await select('save'); check(saves === 1 && root.textContent.includes('All changes saved'), 'Settings: save failed');
   await select('tab:data'); await select('clear-content');
   check(root.querySelector('[role=dialog]')?.textContent.includes('favorites, history, watch progress'), 'Settings: destructive scope missing');
