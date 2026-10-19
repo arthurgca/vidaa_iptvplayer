@@ -86,13 +86,19 @@ export function normalizeSeriesInfo(input: unknown, seriesId: string, fallback?:
     const id = text(item.id ?? item.stream_id); if (!id) return;
     const season = ordinal(item.season) ?? ordinal(details.season) ?? ordinal(group);
     const seasonId = season === undefined ? `group:${group ?? 'unknown'}` : String(season);
+    const conflicts = (values: unknown[]) => new Set(values.map(ordinal).filter(value => value !== undefined)).size > 1;
+    const identityAmbiguous = conflicts([item.season, details.season, group])
+      || conflicts([item.episode_num, item.episode, details.episode_num, details.episode])
+      || [item.series_id, details.series_id].some(value => value != null && text(value) !== seriesId)
+      || Boolean(item.title && item.name && text(item.title).trim() !== text(item.name).trim());
     addSeason(seasonId, season);
     episodes.push({ id, name: firstText(item.title, item.name) || '', season: season ?? null, seasonId,
       episode: ordinal(item.episode_num) ?? ordinal(item.episode) ?? ordinal(details.episode_num) ?? ordinal(details.episode) ?? null,
       extension: optional(item.container_extension) || 'mp4',
       thumbnail: firstText(details.movie_image, details.cover_big, item.movie_image, item.cover),
       duration: firstText(details.duration, item.duration) || (Number(details.duration_secs) > 0 ? `${Math.round(Number(details.duration_secs) / 60)} min` : undefined),
-      description: firstText(details.plot, details.description, item.plot, item.description) });
+      description: firstText(details.plot, details.description, item.plot, item.description),
+      ...(identityAmbiguous ? { identityAmbiguous: true } : {}) });
   };
   if (Array.isArray(root.episodes)) root.episodes.forEach((entry, index) => {
     if (Array.isArray(entry)) entry.forEach(row => append(row, String(index)));

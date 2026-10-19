@@ -1,4 +1,5 @@
 import type { Episode, HistoryItem } from '../types';
+import { groupEpisodes } from './episodeGroups';
 
 export function isWatched(row?: Pick<HistoryItem, 'position' | 'duration' | 'completed'>) {
   return Boolean(row && (row.completed || (Number.isFinite(row.duration) && row.duration > 0 && row.position / row.duration >= .95)));
@@ -20,7 +21,7 @@ export function orderedEpisodes(episodes: Episode[]) {
 }
 
 export function nextEpisode(episodes: Episode[], id: string) {
-  const ordered = orderedEpisodes(episodes);
-  const index = ordered.findIndex((episode) => episode.id === id);
-  return index < 0 ? undefined : ordered[index + 1];
+  const ordered = groupEpisodes(orderedEpisodes(episodes), 'playback');
+  const index = ordered.findIndex(episode => episode.streams.some(stream => stream.id === id));
+  return index < 0 ? undefined : ordered[index + 1]?.streams[0];
 }

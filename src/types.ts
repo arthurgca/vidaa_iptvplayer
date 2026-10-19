@@ -7,7 +7,7 @@ export interface AppConfig { homePreferences?: import('./homePreferences').HomeP
 export interface Channel { id: string; name: string; categoryId: string; logo?: string; epgChannelId?: string; number?: number; extension?: string }
 export interface VodItem { id: string; name: string; categoryId: string; poster?: string; backdrop?: string; year?: string; rating?: string; duration?: string; genre?: string; description?: string; extension?: string }
 export interface SeriesItem extends Omit<VodItem, 'extension'> {}
-export interface Episode { id: string; name: string; season: number | null; episode: number | null; seasonId?: string; thumbnail?: string; extension?: string; duration?: string; description?: string }
+export interface Episode { id: string; name: string; season: number | null; episode: number | null; seasonId?: string; thumbnail?: string; extension?: string; duration?: string; description?: string; identityAmbiguous?: boolean }
 export interface Program { channelId: string; title: string; description?: string; start: number; end: number }
 export interface EpgNow { current?: Program; next?: Program; progress: number; status?: 'current' | 'empty' | 'unavailable' | 'error' }
 export interface Favorite { type: MediaKind; id: string; item: Channel | VodItem | SeriesItem; addedAt: number }

@@ -1,0 +1,67 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><title>Series stream selector remote regression</title>
+<link rel="stylesheet" href="/src/styles.css"><div id="app" class="app-shell with-hint"></div>
+<script type="module">
+import { h, render } from 'preact';
+import { api } from '/src/api/client.ts';
+import { SeriesDetails } from '/src/screens/SeriesDetails.tsx';
+import { useFocusManager } from '/src/navigation/FocusContext.tsx';
+import { listenToRemote } from '/src/platform/remote.ts';
+import { captureBrowseScroll } from '/src/navigation/scroll.ts';
+import { normalizeSeriesInfo } from '/server/xtream/normalizer.ts';
+import { rawVariants, seriesId } from './xtream-episode-variants.ts';
+const root = document.getElementById('app'), wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+const check = (condition, message) => { if (!condition) throw new Error(message); };
+const detail = normalizeSeriesInfo(rawVariants, seriesId);
+detail.episodes.push(...Array.from({length:30}, (_,i)=>({id:`episode-${i+2}`,name:`S03E${i+2}`,season:3,episode:i+2,seasonId:'3',extension:'mkv'})));
+let focus, action, context, props = {}, calls = [], requests = 0;
+api.seriesInfo = async () => { requests++; return detail; };
+api.history = async () => [{type:'series', id:'418954', item:detail.episodes[0], series:detail.item, position:123, duration:3936, watchedAt:1}];
+api.favorites = async () => [];
+function Harness() {
+  focus = useFocusManager();
+  return h(SeriesDetails, { seed:detail.item, saveContext:value=>context=value, registerAction:value=>action=value,
+    play:(episode,series,resume,episodes)=>calls.push({episode,resume,focus:focus.focused,scroll:captureBrowseScroll()}), ...props });
+}
+listenToRemote(remote=>{
+  if(action?.(remote)) return;
+  if(remote==='SELECT') focus.select();
+  if(remote.startsWith('NAV_')) focus.move(remote.substring(4).toLowerCase());
+});
+async function press(key) { document.dispatchEvent(new KeyboardEvent('keydown',{key,bubbles:true})); await wait(10); }
+function visibleFocus() {
+  const element = [...root.querySelectorAll('[data-focus-key]')].find(e=>e.dataset.focusKey===focus.focused);
+  check(element===document.activeElement,'Native focus lost');
+  check(getComputedStyle(element).outlineStyle==='solid','Focus indicator missing');
+  const rect=element.getBoundingClientRect(); check(rect.top>=0 && rect.bottom<=innerHeight,'Focus outside viewport');
+}
+async function run() {
+  render(h(Harness),root); await wait(150);
+  check(root.querySelectorAll('.episode-row').length===31,'Incorrect logical count');
+  const first=root.querySelector('.episode-row'), key=first.dataset.focusKey;
+  focus.focus(key); await press('Enter');
+  check(focus.focused==='series-stream:418954','Previous variant not focused'); visibleFocus();
+  await press('ArrowUp'); check(focus.focused==='series-stream:406214','Wrong Stream 1');
+  for(let i=0;i<25;i++) await press('ArrowDown');
+  check(focus.focused==='series-stream:419000','Focus escaped last stream'); visibleFocus();
+  await press('PageDown'); check(focus.focused==='series-stream:419000','Page key escaped modal');
+  await press('Escape'); check(focus.focused===key,'Back did not restore original episode');
+  check(root.querySelector('.episode-row')===first,'Dialog remounted episodes');
+  for(let i=0;i<24;i++) await press('ArrowDown');
+  visibleFocus(); const list=root.querySelector('.episode-list'), position=list.scrollTop;
+  check(position>0,'Episode list did not scroll');
+  const target=focus.focused;
+  await press('Enter'); await press('Enter'); check(calls.length===1,'Duplicate playback request');
+  const saved=calls[0]; check(saved.focus===target,'Player captured wrong return focus');
+  render(null,root); props={restoreFocus:saved.focus,scroll:saved.scroll,context};
+  render(h(Harness),root); await wait(150);
+  check(focus.focused===target,'Return lost episode focus');
+  check(root.querySelector('.episode-list').scrollTop===position,'Return reset list scroll'); visibleFocus();
+  // Continue opens the same selector, with the previous stream focused.
+  focus.focus('details:continue'); await press('Enter'); check(focus.focused==='series-stream:418954','Continue selected arbitrary stream');
+  await press('Enter'); await press('Enter'); check(calls.length===2,'Continue played twice');
+  check(calls[1].episode.id==='418954' && calls[1].resume===123,'Continue lost original variant or resume');
+  check(requests===2,'Dialog/navigation increased provider requests');
+  window.uiStability={done:true,reports:[{logicalEpisodes:31,variantLabels:3,duplicateLaunches:0,restoredScroll:position,continueStream:calls[1].episode.id,detailRequests:requests,viewport:`${innerWidth}x${innerHeight}`}]};
+}
+run().catch(error=>window.uiStability={done:true,error:error.stack||String(error)});
+</script></html>

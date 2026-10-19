@@ -52,6 +52,7 @@ function AppRouter({ language, setLanguage }: RouterProps) {
   const setCatalog = (kind: keyof typeof catalogs, query: CatalogQuery) => setCatalogs((value) => ({ ...value, [kind]: query }));
   const playerAction = useRef<((action: RemoteAction) => boolean) | null>(null);
   const settingsAction = useRef<((action: RemoteAction) => boolean) | null>(null);
+  const seriesAction = useRef<((action: RemoteAction) => boolean) | null>(null);
   const recentAction = useRef<((action: RemoteAction) => boolean) | null>(null);
   const current = routes[routes.length - 1];
   const sectionNavigation = useSectionNavigation(SECTION_CONTROLS[current?.name ?? 'home'] ?? [], current?.name ?? '');
@@ -101,6 +102,7 @@ function AppRouter({ language, setLanguage }: RouterProps) {
   useEffect(() => listenToRemote((action) => {
     setLastKey(action);
     if (current?.name === 'settings' && settingsAction.current?.(action)) return;
+    if (current?.name === 'series-details' && seriesAction.current?.(action)) return;
     if (current?.name === 'recent' && recentAction.current?.(action)) return;
     if (current?.name === 'player' && playerAction.current) { if (playerAction.current(action)) return; }
     if (sectionNavigation(action)) return;
@@ -166,7 +168,7 @@ function AppRouter({ language, setLanguage }: RouterProps) {
     case 'movies': screen = <MediaCatalog kind="movies" query={catalogs.movies} setQuery={(query) => setCatalog('movies', query)} restoreFocus={current.restoreFocus} scroll={current.scroll} open={(item) => push('movie-details', item)} />; break;
     case 'movie-details': screen = <MovieDetails seed={current.data as VodItem} play={playMovie} />; break;
     case 'series': screen = <MediaCatalog kind="series" query={catalogs.series} setQuery={(query) => setCatalog('series', query)} restoreFocus={current.restoreFocus} scroll={current.scroll} open={(item) => push('series-details', item)} />; break;
-    case 'series-details': screen = <SeriesDetails key={(current.data as SeriesItem).id} seed={current.data as SeriesItem} play={playEpisode} back={back} restoreFocus={current.restoreFocus} scroll={current.scroll} context={current.seriesContext} saveContext={seriesContext => setRoutes(stack => stack.map((route, i) => i === stack.length - 1 ? { ...route, seriesContext } : route))} />; break;
+    case 'series-details': screen = <SeriesDetails registerAction={handler => { seriesAction.current = handler; }} key={(current.data as SeriesItem).id} seed={current.data as SeriesItem} play={playEpisode} back={back} restoreFocus={current.restoreFocus} scroll={current.scroll} context={current.seriesContext} saveContext={seriesContext => setRoutes(stack => stack.map((route, i) => i === stack.length - 1 ? { ...route, seriesContext } : route))} />; break;
     case 'favorites': screen = <Favorites open={openFavorite} />; break;
     case 'recent': screen = <Recent open={openRecent} back={back} restoreFocus={current.restoreFocus} scroll={current.scroll} registerAction={handler => { recentAction.current = handler; }} cancelPendingOpen={() => { recentRequest.current++; }} />; break;
     case 'settings': screen = <Settings updated={value => { if (value.homeProviderKey) setHomeConfiguration({ homeProviderKey: value.homeProviderKey, homePreferences: value.homePreferences ?? null }); }} firstRun={Boolean((current.data as { firstRun?: boolean })?.firstRun)} language={language} setLanguage={setLanguage} saved={(current.data as { firstRun?: boolean })?.firstRun ? replaceHome : back} leave={back} registerAction={handler => { settingsAction.current = handler; }} cleared={() => setCatalogs({ live: emptyCatalogQuery(), movies: emptyCatalogQuery(), series: emptyCatalogQuery() })} />; break;

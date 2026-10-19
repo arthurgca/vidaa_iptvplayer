@@ -45,6 +45,7 @@ export interface VodItem {
 export interface SeriesItem extends Omit<VodItem, 'extension'> {}
 
 export interface Episode {
+  identityAmbiguous?: boolean;
   id: string;
   name: string;
   season: number | null;
