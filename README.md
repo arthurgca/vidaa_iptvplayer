@@ -8,12 +8,62 @@ There are no application accounts, cloud services, transcoders, Redis, or extern
 
 > This project does not include IPTV service or credentials. Use only sources you are authorized to access.
 
+## Main features
+
+- **Live TV and EPG** — browse and search channels by category, preview now/next programmes, and open a three-hour TV guide.
+- **Movies** — browse poster catalogs with category filters, sorting, search, details, resume, and start-over controls.
+- **Series** — choose seasons and episodes, track watched episodes, and continue automatically to the next episode.
+- **Personal library** — save and reorder favorites, revisit recently watched items, and resume unfinished titles.
+- **Customizable Home** — choose movie and series categories, show favorites and Continue Watching, and reorder sections.
+- **TV remote navigation** — visible focus, predictable Back behavior, and playback controls, with English and Brazilian Portuguese interfaces.
+
+[Quick start](#quick-start-with-docker) · [Configuration](#configuration) · [Remote controls](#remote-controls) · [VIDAA installation](#vidaa-installation) · [Development](#development) · [Troubleshooting](#troubleshooting)
+
+## Screenshots
+
+These six screenshots show the actual app running in a desktop browser at 1920 × 1080 with the built-in Demo Mode catalog. Channel logos, posters, titles, and schedules are demo data; your provider supplies the content when configured.
+
+### Home
+
+Jump to Live TV, Movies, Series, Favorites, Recently Watched, or Settings, and browse library previews from one screen.
+
+![Home screen with main navigation and movie library previews](docs/screenshots/home.png)
+
+### Live TV
+
+Search channels, filter by category, inspect the highlighted channel's current and next programmes, and add it to favorites.
+
+![Live TV channel browser with now and next programme information and an Add Favorite action](docs/screenshots/live-tv.png)
+
+### TV Guide
+
+Browse a three-hour schedule for six channels at a time. Move through earlier or later windows, return to Now, or select a programme to tune its live channel.
+
+![TV Guide showing six channels and a three-hour programme schedule](docs/screenshots/tv-guide.png)
+
+### Movies
+
+Explore the movie catalog using category, sort, and search controls. Select a poster to open details and playback actions.
+
+![Movie catalog with category and sort selectors, search, posters, years, and ratings](docs/screenshots/movies.png)
+
+### Series and episodes
+
+Open a series to read its synopsis, save it as a favorite, choose a season, and play an episode.
+
+![Series details for Northern Lights with season selection and playable episodes](docs/screenshots/series.png)
+
+### Settings
+
+Configure language, provider connection, playback, EPG and data, and Home layout through separate tabs. Save applies your changes; environment-managed settings are identified on screen.
+
+![Settings screen with General, Provider and connection, Playback, EPG and data, and Home tabs](docs/screenshots/settings.png)
 
 ## Quick start with Docker
 
 ```bash
-git clone <repository>
-cd <repository>
+git clone https://github.com/arthurgca/vidaa_iptvplayer.git
+cd vidaa_iptvplayer
 cp .env.example .env
 # Edit .env; DEMO_MODE=true works without IPTV credentials.
 docker compose up -d
@@ -23,7 +73,7 @@ Open `http://SERVER-IP:8080`. Check the container with:
 
 ```bash
 curl http://SERVER-IP:8080/health
-# {"status":"ok","version":"1.1.0"}
+# {"status":"ok","version":"1.2.2"}
 ```
 
 Configuration, EPG cache, favorites, and history persist in the `vidaa-iptv-data` Docker volume (mounted as `/data`). The fixed volume name keeps the data across Portainer Git-stack repulls and ordinary redeployments. One shared profile is intentional.
@@ -48,7 +98,7 @@ Environment variables override Settings. The Settings password is returned blank
 
 ### Language
 
-The interface ships in English and Brazilian Portuguese. **Settings → Language** switches it immediately and saves the choice for every device, and the same selector is the first field on the first-run screen. Until someone chooses, the TV's own language decides: any `pt` variant starts in Portuguese, anything else in English. Setting `LANGUAGE` pins the interface and hides that guess.
+The interface ships in English and Brazilian Portuguese. Choose **Settings → General → Language**, then **Save** to apply the choice for every device. Language is also available during first-run setup. Until someone chooses, the TV's own language decides: any `pt` variant starts in Portuguese, anything else in English. Setting `LANGUAGE` pins the interface and hides that guess.
 
 Provider and connection errors are relayed from the backend and stay in English.
 
